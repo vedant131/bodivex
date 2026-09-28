@@ -1,363 +1,230 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, FlatList, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Animated,
+  View, Text, TextInput, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { format } from 'date-fns';
-import { subscribeToMessages, sendMessage, markAsRead, setTyping, subscribeToTyping } from '../../services/chat';
 import { useAuthStore } from '../../stores/authStore';
-import { COLORS } from '../../constants/colors';
-import { Message } from '../../types/chat';
+import { subscribeToMessages, subscribeToChat, sendMessage, markAsRead, setTyping } from '../../services/chat';
+import { uploadImage } from '../../services/storage';
 import { Screen } from '../../components/ui/Screen';
+import { Glass } from '../../components/ui/Glass';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Avatar, IconButton } from '../../components/ui/Bits';
+import { T, type } from '../../constants/theme';
+import { Chat, Message } from '../../types/chat';
 
-let AudioModule: any = null;
-try {
-  AudioModule = require('expo-av')?.Audio;
-} catch {
-  // ExponentAV native module not available in Expo Go SDK 57
-}
+const dayLabel = (d: Date) => {
+  const today = new Date();
+  const y = new Date(); y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+const time = (d: Date) => d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
 
 export default function ChatScreen() {
-  const { id: chatId, name: recipientName, photo: recipientPhoto } = useLocalSearchParams<{
-    id: string; name: string; photo?: string;
-  }>();
+  const { id: chatId, name, photo } = useLocalSearchParams<{ id: string; name: string; photo?: string }>();
   const { user } = useAuthStore();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chat, setChat] = useState<Chat | null>(null);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRecording, setIsRecording] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [recording, setRecording] = useState<any>(null);
-  const flatListRef = useRef<FlatList>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const listRef = useRef<FlatList>(null);
+  const typingRef = useRef(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!chatId || !user?.id) return;
-    const unsub = subscribeToMessages(chatId, (msgs) => {
+    if (!chatId || !user) return;
+    const unsubMsgs = subscribeToMessages(chatId, (msgs) => {
       setMessages(msgs);
-      setIsLoading(false);
-      markAsRead(chatId, user.id);
+      setLoading(false);
+      if (msgs.some((m) => !m.read && m.senderId !== user.id)) markAsRead(chatId, user.id).catch(() => {});
     });
-    const unsubTyping = subscribeToTyping(chatId, user.id, setTypingUsers);
-    return () => { unsub(); unsubTyping(); };
+    const unsubChat = subscribeToChat(chatId, setChat);
+    return () => {
+      unsubMsgs();
+      unsubChat();
+      if (typingRef.current) setTyping(chatId, user.id, false).catch(() => {});
+    };
   }, [chatId, user?.id]);
 
-  const handleSend = async () => {
-    if (!input.trim() || !user?.id) return;
-    const text = input.trim();
-    setInput('');
-    await sendMessage(chatId, {
-      chatId,
-      senderId: user.id,
-      senderName: user.name,
-      type: 'text',
-      text,
-    });
-  };
+  const unlocked = !!chat?.isUnlocked;
+  const otherTyping = !!chat && Object.entries(chat.typing ?? {}).some(([uid, v]) => uid !== user?.id && v);
 
-  const handleInputChange = (text: string) => {
+  // One write when typing starts and one when it stops, not one per keystroke
+  const onChangeText = (text: string) => {
     setInput(text);
-    setTyping(chatId, user!.id, true);
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => setTyping(chatId, user!.id, false), 2000);
+    if (!user || !unlocked) return;
+    if (!typingRef.current) {
+      typingRef.current = true;
+      setTyping(chatId, user.id, true).catch(() => {});
+    }
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      typingRef.current = false;
+      setTyping(chatId, user.id, false).catch(() => {});
+    }, 2500);
   };
 
-  const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!result.canceled && user?.id) {
-      await sendMessage(chatId, {
-        chatId,
-        senderId: user.id,
-        senderName: user.name,
-        type: 'photo',
-        photoUrl: result.assets[0].uri,
-      });
-    }
-  };
-
-  const startRecording = async () => {
-    if (!AudioModule) {
-      setIsRecording(true);
-      return;
-    }
+  const send = async (msg: Pick<Message, 'type' | 'text' | 'photoUrl'>) => {
+    if (!user) return;
+    setSending(true);
     try {
-      await AudioModule.requestPermissionsAsync();
-      await AudioModule.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await AudioModule.Recording.createAsync(
-        AudioModule.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(rec);
-      setIsRecording(true);
-    } catch (e) {
-      console.error('Recording error:', e);
-      setIsRecording(true);
+      await sendMessage(chatId, { chatId, senderId: user.id, senderName: user.name, ...msg });
+      return true;
+    } catch (e: any) {
+      Alert.alert('Not sent', e.code === 'permission-denied' ? 'Chat opens once the coach accepts your booking.' : e.message);
+      return false;
+    } finally {
+      setSending(false);
     }
   };
 
-  const stopRecording = async () => {
-    if (!user?.id) return;
-    setIsRecording(false);
-    if (!AudioModule || !recording) {
-      // Create voice message note
-      await sendMessage(chatId, {
-        chatId,
-        senderId: user.id,
-        senderName: user.name,
-        type: 'voice',
-        voiceUrl: 'https://example.com/voice-note.m4a',
-        voiceDurationSecs: 5,
-      });
-      return;
-    }
+  const sendText = async () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput(''); // optimistic
+    if (!(await send({ type: 'text', text }))) setInput(text); // restore on failure, never lose it
+  };
+
+  const sendPhoto = async () => {
+    if (!user) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (res.canceled) return;
+    setSending(true);
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      const status = await recording.getStatusAsync();
-      setRecording(null);
-      if (uri) {
-        await sendMessage(chatId, {
-          chatId,
-          senderId: user.id,
-          senderName: user.name,
-          type: 'voice',
-          voiceUrl: uri,
-          voiceDurationSecs: Math.round((status as any).durationMillis / 1000),
-        });
-      }
-    } catch (e) {
-      console.error('Stop recording error:', e);
+      // Upload first so the other person can actually see it (a local file:// path only exists on this phone)
+      const url = await uploadImage(res.assets[0].uri, `users/${user.id}/chat_${Date.now()}.jpg`);
+      await send({ type: 'photo', photoUrl: url });
+    } catch (e: any) {
+      Alert.alert('Photo not sent', e.message);
+      setSending(false);
     }
   };
 
-  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
-    const isMe = item.senderId === user?.id;
-    const showDate = index === 0 || (
-      new Date(item.timestamp).toDateString() !==
-      new Date(messages[index - 1].timestamp).toDateString()
-    );
-
+  const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => {
+    const me = item.senderId === user?.id;
+    const prev = messages[index - 1];
+    const newDay = !prev || prev.timestamp.toDateString() !== item.timestamp.toDateString();
     return (
-      <>
-        {showDate && (
-          <View style={styles.dateSeparator}>
-            <Text style={styles.dateText}>{format(item.timestamp, 'dd MMM yyyy')}</Text>
-          </View>
-        )}
-        <View style={[styles.bubbleRow, isMe && styles.bubbleRowMe]}>
-          {!isMe && (
-            <View style={styles.avatarSmall}>
-              <Text style={styles.avatarSmallText}>{item.senderName[0]}</Text>
-            </View>
+      <View>
+        {newDay && <Text style={styles.day}>{dayLabel(item.timestamp)}</Text>}
+        <View style={[styles.row, me && { justifyContent: 'flex-end' }]}>
+          {me ? (
+            <LinearGradient colors={T.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.mine]}>
+              <Body item={item} me />
+            </LinearGradient>
+          ) : (
+            <Glass radius={20} style={[styles.bubble, styles.theirs]}>
+              <Body item={item} />
+            </Glass>
           )}
-          <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
-            {item.type === 'text' && (
-              <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>
-                {item.text}
-              </Text>
-            )}
-            {item.type === 'photo' && item.photoUrl && (
-              <Image source={{ uri: item.photoUrl }} style={styles.photoMessage} contentFit="cover" />
-            )}
-            {item.type === 'voice' && (
-              <View style={styles.voiceMessage}>
-                <Ionicons name="mic" size={18} color={isMe ? COLORS.onColor : COLORS.primary} />
-                <Text style={[styles.voiceDuration, isMe && { color: 'rgba(255,255,255,0.8)' }]}>
-                  {item.voiceDurationSecs ?? 0}s voice note
-                </Text>
-                <Ionicons name="play-circle" size={22} color={isMe ? COLORS.onColor : COLORS.primary} />
-              </View>
-            )}
-            <Text style={[styles.timestamp, isMe && styles.timestampMe]}>
-              {format(item.timestamp, 'hh:mm a')}
-              {isMe && (
-                <Ionicons
-                  name={item.read ? 'checkmark-done' : 'checkmark'}
-                  size={12}
-                  color={item.read ? '#34B7F1' : 'rgba(255,255,255,0.6)'}
-                />
-              )}
-            </Text>
-          </View>
         </View>
-      </>
+      </View>
     );
   }, [messages, user?.id]);
 
   return (
     <Screen preset="calm" edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          {recipientPhoto ? (
-            <Image source={{ uri: recipientPhoto }} style={styles.headerAvatar} contentFit="cover" />
-          ) : (
-            <View style={styles.headerAvatarPlaceholder}>
-              <Text style={styles.headerAvatarText}>{(recipientName ?? 'U')[0]}</Text>
-            </View>
-          )}
-          <View>
-            <Text style={styles.headerName}>{recipientName ?? 'Chat'}</Text>
-            {typingUsers.length > 0 ? (
-              <Text style={styles.typingText}>typing...</Text>
-            ) : (
-              <Text style={styles.onlineText}>Online</Text>
-            )}
-          </View>
+      <Glass radius={0} style={styles.header}>
+        <IconButton icon="chevron-back" label="Back" onPress={() => router.back()} size={38} />
+        <Avatar uri={photo} name={name || 'Chat'} size={40} radius={20} />
+        <View style={{ flex: 1 }}>
+          <Text style={type.headline} numberOfLines={1}>{name}</Text>
+          <Text style={[type.caption, otherTyping && { color: T.ring2 }]}>
+            {otherTyping ? 'typing…' : unlocked ? 'Booking confirmed' : 'Waiting for coach to accept'}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.videoCallBtn}>
-          <Ionicons name="videocam" size={22} color={COLORS.primary} />
-        </TouchableOpacity>
-      </View>
+      </Glass>
 
-      {/* Messages */}
-      {isLoading ? (
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator color={COLORS.primary} />
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {/* Input Bar */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.inputBar}>
-          <TouchableOpacity onPress={handlePickImage} style={styles.attachBtn}>
-            <Ionicons name="image" size={22} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Message..."
-            placeholderTextColor={COLORS.textMuted}
-            value={input}
-            onChangeText={handleInputChange}
-            multiline
-            maxLength={1000}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        {loading ? (
+          <ActivityIndicator color={T.text} style={{ flex: 1 }} />
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons name={unlocked ? 'chatbubbles-outline' : 'lock-closed-outline'} size={32} color={T.text2} />
+                <Text style={[type.caption, { textAlign: 'center' }]}>
+                  {unlocked
+                    ? 'Say hi and plan your first session.'
+                    : 'This chat opens as soon as the coach accepts the booking. Use the public Q&A on their profile until then.'}
+                </Text>
+              </View>
+            }
           />
-          {input.trim() ? (
-            <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-              <Ionicons name="send" size={20} color={COLORS.onColor} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={() => {
-                import('react-native').then(({ Alert }) => {
-                  Alert.alert(
-                    'Voice Notes (In Development)',
-                    'Audio recording requires a custom development build (EAS Build) rather than Expo Go standard client. Text and photos are active!'
-                  );
-                });
-              }}
-              style={styles.micDisabledBtn}
-            >
-              <Ionicons name="mic-outline" size={20} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          )}
+        )}
+
+        <View style={styles.composerWrap}>
+          <Glass radius={26} style={[styles.composer, !unlocked && { opacity: 0.5 }]}>
+            <PressableScale onPress={sendPhoto} disabled={!unlocked || sending} accessibilityLabel="Send photo" hitSlop={8}>
+              <Ionicons name="image-outline" size={22} color={T.text2} />
+            </PressableScale>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={onChangeText}
+              placeholder={unlocked ? 'Message' : 'Chat locked until accepted'}
+              placeholderTextColor={T.text3}
+              editable={unlocked}
+              multiline
+              maxLength={1000}
+              selectionColor={T.accent}
+            />
+            <PressableScale onPress={sendText} disabled={!unlocked || !input.trim() || sending} accessibilityLabel="Send">
+              <LinearGradient colors={T.gradient} style={styles.send}>
+                {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="arrow-up" size={20} color="#fff" />}
+              </LinearGradient>
+            </PressableScale>
+          </Glass>
         </View>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
+function Body({ item, me }: { item: Message; me?: boolean }) {
+  return (
+    <>
+      {item.type === 'photo' && item.photoUrl ? (
+        <Image source={{ uri: item.photoUrl }} style={styles.photo} contentFit="cover" />
+      ) : (
+        <Text style={styles.text}>{item.text}</Text>
+      )}
+      <View style={styles.meta}>
+        <Text style={[styles.time, me && { color: 'rgba(255,255,255,0.75)' }]}>{time(item.timestamp)}</Text>
+        {me && <Ionicons name={item.read ? 'checkmark-done' : 'checkmark'} size={13} color="rgba(255,255,255,0.85)" />}
+      </View>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    backgroundColor: COLORS.card,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: 4 },
-  headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20 },
-  headerAvatarPlaceholder: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
-  },
-  headerAvatarText: { color: COLORS.onColor, fontSize: 16, fontWeight: '700' },
-  headerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
-  typingText: { fontSize: 12, color: COLORS.primary, fontStyle: 'italic' },
-  onlineText: { fontSize: 12, color: COLORS.success },
-  videoCallBtn: { padding: 8 },
-  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  messagesList: { padding: 16, gap: 8 },
-  dateSeparator: { alignItems: 'center', marginVertical: 12 },
-  dateText: { fontSize: 12, color: COLORS.textMuted, backgroundColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10 },
-  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginBottom: 4 },
-  bubbleRowMe: { justifyContent: 'flex-end' },
-  avatarSmall: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarSmallText: { color: COLORS.onColor, fontSize: 12, fontWeight: '700' },
-  bubble: { maxWidth: '78%', padding: 12, borderRadius: 18, gap: 4 },
-  bubbleMe: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
-  bubbleThem: { backgroundColor: COLORS.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: COLORS.border },
-  bubbleText: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 22 },
-  bubbleTextMe: { color: COLORS.onColor },
-  photoMessage: { width: 200, height: 150, borderRadius: 12 },
-  voiceMessage: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  voiceDuration: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
-  timestamp: { fontSize: 10, color: COLORS.textMuted, alignSelf: 'flex-end' },
-  timestampMe: { color: 'rgba(255,255,255,0.7)' },
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    padding: 10,
-    backgroundColor: COLORS.card,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  attachBtn: { padding: 6, alignSelf: 'flex-end', marginBottom: 4 },
-  textInput: {
-    flex: 1,
-    maxHeight: 100,
-    backgroundColor: COLORS.background,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-  micDisabledBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F1F3F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-  recordingBtn: { backgroundColor: COLORS.danger },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 0 },
+  list: { padding: 14, gap: 6, flexGrow: 1 },
+  day: { alignSelf: 'center', color: T.text3, fontSize: 12, fontWeight: '700', marginVertical: 10 },
+  row: { flexDirection: 'row' },
+  bubble: { maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
+  mine: { borderBottomRightRadius: 6 },
+  theirs: { borderBottomLeftRadius: 6 },
+  text: { color: T.text, fontSize: 16, lineHeight: 21 },
+  photo: { width: 220, height: 220, borderRadius: 14 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', marginTop: 3 },
+  time: { color: T.text3, fontSize: 11 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
+  composerWrap: { paddingHorizontal: 12, paddingBottom: 8, paddingTop: 4 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
+  input: { flex: 1, color: T.text, fontSize: 16, maxHeight: 120, paddingVertical: 8 },
+  send: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
 });

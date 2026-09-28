@@ -34,7 +34,8 @@ const generateBlueprintWithAI = async (
   try {
     const call = httpsCallable<object, { blueprint: Omit<FitnessBlueprint, 'goals' | 'generatedAt'> | null }>(
       functions,
-      'generateBlueprint'
+      'generateBlueprint',
+      { timeout: 8000 } // never keep the user waiting on AI; fall back to the built-in plan
     );
     const { data } = await call({ age, gender, weight, height, fitnessLevel, goals: goals.map((g) => FitnessGoalLabel[g]) });
     if (data.blueprint) return { goals, ...data.blueprint, generatedAt: new Date() };
@@ -81,6 +82,7 @@ export default function BlueprintScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [blueprint, setBlueprint] = useState<FitnessBlueprint | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function BlueprintScreen() {
 
   const saveProfile = async (bp: FitnessBlueprint) => {
     if (!user || !clientProfile) return;
+    setSaving(true);
     try {
       const profilePhoto = clientProfile.profilePhoto
         ? await uploadImage(clientProfile.profilePhoto, `users/${user.id}/profile.jpg`)
@@ -101,6 +104,8 @@ export default function BlueprintScreen() {
       setSaveError(null);
     } catch (e: any) {
       setSaveError(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -116,8 +121,9 @@ export default function BlueprintScreen() {
         clientProfile?.goals ?? [FitnessGoal.GENERAL_FITNESS]
       );
       setBlueprint(bp);
-      if (user) await saveProfile(bp);
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+      // Save (incl. photo upload) in the background; the Find button waits on `saving`.
+      if (user) saveProfile(bp);
     } catch (e) {
       console.error('Blueprint error:', e);
     } finally {
@@ -178,13 +184,13 @@ export default function BlueprintScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.findBtn, saveError ? { opacity: 0.5 } : null]}
-              disabled={!!saveError}
+              style={[styles.findBtn, (saveError || saving) ? { opacity: 0.5 } : null]}
+              disabled={!!saveError || saving}
               onPress={() => router.replace('/(client)/home')}
               activeOpacity={0.85}
             >
               <Ionicons name="search" size={20} color={COLORS.onColor} />
-              <Text style={styles.findBtnText}>Find My Perfect Trainer</Text>
+              <Text style={styles.findBtnText}>{saving ? 'Saving your profile…' : 'Find My Perfect Trainer'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={generateBlueprint} style={styles.regenerateBtn}>

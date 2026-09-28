@@ -173,7 +173,18 @@ b.delete(doc(trainer.db, 'trainers', trainer.uid, 'slots', toDecline.key));
 await b.commit();
 ok('trainer declined and freed the slot');
 
+// ── Client cancels a pending request → slot is freed for others
+const toCancel = await book(client);
+const cb = writeBatch(client.db);
+cb.update(doc(client.db, 'sessions', toCancel.id), { status: 'cancelled', cancelReason: 'Cancelled by client', updatedAt: serverTimestamp() });
+cb.delete(doc(client.db, 'trainers', trainer.uid, 'slots', toCancel.key));
+await cb.commit();
+ok('client cancelled request and freed the slot');
+
 // ── Complete + review → rating/totals updated by functions
+await denied(updateDoc(doc(client.db, 'sessions', first.id), { status: 'completed', clientRating: 5, updatedAt: serverTimestamp() }),
+  'completing (and reviewing) before the session time');
+await admin.doc(`sessions/${first.id}`).update({ scheduledAt: new Date(Date.now() - 3600e3) }); // session happened
 await updateDoc(doc(client.db, 'sessions', first.id), { status: 'completed', clientRating: 4, updatedAt: serverTimestamp() });
 await setDoc(doc(client.db, 'reviews', first.id), {
   sessionId: first.id, clientId: client.uid, clientName: 'Test Client', trainerId: trainer.uid,

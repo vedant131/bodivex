@@ -32,6 +32,7 @@ import { COLORS } from '../../constants/colors';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA } from '../../types/trainer';
 import { Screen } from '../../components/ui/Screen';
+import { Button } from '../../components/ui/Button';
 
 export default function TrainerProfileManageScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
@@ -203,20 +204,24 @@ export default function TrainerProfileManageScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{trainerProfile?.name || 'Coach'}</Text>
-              <Text style={styles.city}>{trainerProfile?.city || 'Mumbai'} · {trainerProfile?.experience || 3} yrs experience</Text>
+              <Text style={styles.city}>{trainerProfile?.city} · {trainerProfile?.experience ?? 0} yrs experience</Text>
 
               <View style={styles.badgeRow}>
-                <View style={styles.kycBadge}>
-                  <Ionicons name="shield-checkmark" size={12} color={COLORS.success} />
-                  <Text style={styles.kycText}>Aadhaar & PAN Verified</Text>
-                </View>
-                <View style={styles.bankBadge}>
-                  <Ionicons name="card" size={12} color={COLORS.primary} />
-                  <Text style={styles.bankText}>Bank Linked</Text>
-                </View>
+                {trainerProfile?.kycStatus === 'approved' ? (
+                  <View style={styles.kycBadge}>
+                    <Ionicons name="shield-checkmark" size={12} color={COLORS.success} />
+                    <Text style={styles.kycText}>Verified coach</Text>
+                  </View>
+                ) : (
+                  <View style={styles.bankBadge}>
+                    <Ionicons name="hourglass-outline" size={12} color={COLORS.warning} />
+                    <Text style={[styles.bankText, { color: COLORS.warning }]}>Under review</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
+          <Button title="Edit profile" icon="create-outline" variant="glass" size="md" onPress={() => router.push('/profile-edit')} style={{ marginTop: 14 }} />
         </View>
 
         {/* Public View Shortcut */}

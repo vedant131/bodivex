@@ -19,6 +19,7 @@ import { useAuthStore } from '../../stores/authStore';
 import {
   subscribeToClientSessions,
   clientCompleteSession,
+  clientCancelSession,
 } from '../../services/bookings';
 import { COLORS } from '../../constants/colors';
 import { openVideoCall } from '../../services/video';
@@ -48,15 +49,27 @@ export default function ClientSessionsScreen() {
     return unsub;
   }, [user?.id]);
 
+  const now = Date.now();
+  const isExpired = (s: Session) => s.status === 'pending' && s.scheduledAt.getTime() < now;
   const filteredSessions = sessions.filter((s) => {
     if (activeTab === 'upcoming') {
-      return s.status === 'pending' || s.status === 'confirmed';
+      return (s.status === 'pending' && !isExpired(s)) || s.status === 'confirmed';
     }
     if (activeTab === 'completed') {
       return s.status === 'completed';
     }
     return true;
   });
+
+  const cancelRequest = (session: Session) =>
+    Alert.alert('Cancel request?', `Your request to ${session.trainerName} will be withdrawn.`, [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Cancel request',
+        style: 'destructive',
+        onPress: () => clientCancelSession(session).catch((e) => Alert.alert('Error', e.message)),
+      },
+    ]);
 
   const handleConfirmSatisfied = (session: Session) => {
     setSelectedSession(session);
@@ -155,13 +168,17 @@ export default function ClientSessionsScreen() {
                         isCompleted && { color: COLORS.success },
                       ]}
                     >
-                      {isPending
+                      {isPending && isExpired(session)
+                        ? 'Expired'
+                        : isPending
                         ? 'Waiting for coach'
                         : isConfirmed
                         ? 'Confirmed'
                         : isCompleted
                         ? 'Completed'
-                        : session.status}
+                        : session.cancelReason === 'Cancelled by client'
+                        ? 'Cancelled'
+                        : 'Declined by coach'}
                     </Text>
                   </View>
                 </View>
@@ -219,12 +236,19 @@ export default function ClientSessionsScreen() {
                     </TouchableOpacity>
                   )}
 
-                  {isConfirmed && (
+                  {isConfirmed && session.scheduledAt.getTime() <= now && (
                     <TouchableOpacity
                       style={styles.releaseBtn}
                       onPress={() => handleConfirmSatisfied(session)}
                     >
-                      <Text style={styles.releaseBtnText}>Mark Done</Text>
+                      <Text style={styles.releaseBtnText}>Mark done & rate</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {isPending && !isExpired(session) && (
+                    <TouchableOpacity style={styles.chatActionBtn} onPress={() => cancelRequest(session)}>
+                      <Ionicons name="close-circle-outline" size={16} color={COLORS.danger} />
+                      <Text style={[styles.chatActionText, { color: COLORS.danger }]}>Cancel request</Text>
                     </TouchableOpacity>
                   )}
                 </View>

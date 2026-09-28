@@ -16,13 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAuthStore } from '../../stores/authStore';
 import { getClientSummaries } from '../../services/bookings';
-import { createScheduledCheckIn } from '../../services/chat';
+import { sendMessage } from '../../services/chat';
 import { COLORS } from '../../constants/colors';
 import { ClientSummary } from '../../types/session';
 import { Screen } from '../../components/ui/Screen';
 
 export default function TrainerClientsScreen() {
-  const { trainerProfile } = useAuthStore();
+  const { trainerProfile, user } = useAuthStore();
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,20 +55,24 @@ export default function TrainerClientsScreen() {
       Alert.alert('Please write a check-in message');
       return;
     }
+    if (!selectedClient.chatId || !user) {
+      Alert.alert('No chat yet', 'Chat opens once you accept a booking from this client.');
+      return;
+    }
+    // Note: sent now as a chat message; recurring weekly check-ins need a scheduled Cloud Function
     try {
-      await createScheduledCheckIn({
-        trainerId,
-        clientId: selectedClient.clientId,
-        message: checkInMsg.trim(),
-        scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Next week
-        frequency: 'weekly',
-        isActive: true,
+      await sendMessage(selectedClient.chatId, {
+        chatId: selectedClient.chatId,
+        senderId: user.id,
+        senderName: user.name,
+        type: 'text',
+        text: checkInMsg.trim(),
       });
       setShowCheckInModal(false);
       setCheckInMsg('');
-      Alert.alert('Check-In Scheduled! ⏰', `Automated check-in reminder set for ${selectedClient.clientName}.`);
+      Alert.alert('Check-in sent', `${selectedClient.clientName} will see it in your chat.`);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Not sent', e.message);
     }
   };
 
@@ -174,8 +178,8 @@ export default function TrainerClientsScreen() {
                 style={styles.checkInActionBtn}
                 onPress={() => setShowCheckInModal(true)}
               >
-                <Ionicons name="alarm-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.checkInActionText}>Set Scheduled Check-in</Text>
+                <Ionicons name="paper-plane-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.checkInActionText}>Send check-in</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -203,9 +207,9 @@ export default function TrainerClientsScreen() {
       <Modal visible={showCheckInModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { gap: 14 }]}>
-            <Text style={styles.modalName}>Schedule Automated Check-In</Text>
+            <Text style={styles.modalName}>Send a check-in</Text>
             <Text style={styles.modalSince}>
-              Bodivex will automatically prompt {selectedClient?.clientName} every week with your instructions.
+              Sent to {selectedClient?.clientName} in your chat right away.
             </Text>
 
             <TextInput
@@ -226,7 +230,7 @@ export default function TrainerClientsScreen() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreateCheckIn}>
-                <Text style={styles.saveText}>Set Weekly Check-In</Text>
+                <Text style={styles.saveText}>Send</Text>
               </TouchableOpacity>
             </View>
           </View>

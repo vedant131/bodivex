@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  deleteField,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
 import { uploadImage } from './storage';
@@ -117,8 +118,10 @@ export const createTrainerProfile = async (uid: string, data: Partial<TrainerPro
   });
 };
 
+/** Keys passed as `undefined` are removed from the document (e.g. switching to online-only clears the gym). */
 export const updateTrainerProfile = async (id: string, data: Partial<TrainerProfile>): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), { ...withoutUndefined(data), updatedAt: serverTimestamp() });
+  const changes = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === undefined ? deleteField() : v]));
+  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), { ...changes, updatedAt: serverTimestamp() });
 };
 
 export const updateAvailability = async (id: string, isAvailableNow: boolean): Promise<void> => {

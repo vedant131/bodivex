@@ -58,7 +58,10 @@ service cloud.firestore {
           && sessionAfter().clientId == request.auth.uid
           && sessionAfter().trainerId == uid
           && sessionAfter().slotKey == slotId;
-        allow delete: if isUser(uid);
+        allow delete: if isUser(uid)
+          || (signedIn()
+              && getAfter(/databases/$(database)/documents/sessions/$(resource.data.sessionId)).data.clientId == request.auth.uid
+              && getAfter(/databases/$(database)/documents/sessions/$(resource.data.sessionId)).data.status == 'cancelled');
       }
     }
 
@@ -84,7 +87,8 @@ service cloud.firestore {
       // Client completes a confirmed session (with rating) or cancels a pending one
       allow update: if signedIn()
         && resource.data.clientId == request.auth.uid
-        && ((resource.data.status == 'confirmed' && incoming().status == 'completed')
+        && ((resource.data.status == 'confirmed' && incoming().status == 'completed'
+                && request.time >= resource.data.scheduledAt)   // no reviews before it happened
             || (resource.data.status == 'pending' && incoming().status == 'cancelled'))
         && onlyChanges(['status', 'clientRating', 'clientReview', 'endedAt', 'cancelReason', 'updatedAt']);
     }

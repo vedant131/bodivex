@@ -27,6 +27,7 @@ export interface Chat {
   sessionId?: string;
   trainerId: string;
   isUnlocked: boolean; // false until trainer accepts booking
+  typing?: Record<string, boolean>;
   createdAt: Date;
 }
 

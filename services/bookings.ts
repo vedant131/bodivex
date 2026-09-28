@@ -111,6 +111,18 @@ export const trainerRejectSession = async (
   await batch.commit();
 };
 
+/** Client withdraws a pending request; the slot lock is released in the same batch. */
+export const clientCancelSession = async (session: Session): Promise<void> => {
+  const batch = writeBatch(db);
+  batch.update(doc(db, COLLECTIONS.SESSIONS, session.id), {
+    status: 'cancelled',
+    cancelReason: 'Cancelled by client',
+    updatedAt: serverTimestamp(),
+  });
+  if (session.slotKey) batch.delete(doc(db, COLLECTIONS.TRAINERS, session.trainerId, 'slots', session.slotKey));
+  await batch.commit();
+};
+
 export const clientCompleteSession = async (
   sessionId: string,
   rating?: number,
