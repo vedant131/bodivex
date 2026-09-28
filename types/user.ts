@@ -76,6 +76,7 @@ export interface ClientProfile {
   fitnessLevel: FitnessLevel;
   currentlyGoesToGym: boolean;
   gymName?: string;
+  city: string;
   goals: FitnessGoal[];
   sessionPreference: SessionPreference;
   budgetRange: BudgetRange;

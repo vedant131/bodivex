@@ -16,6 +16,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
+import { CityPicker } from '../../../components/shared/CityPicker';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
 
 const TOTAL_STEPS = 5;
@@ -24,7 +25,7 @@ export default function TrainerStep1() {
   const { trainerProfile, setTrainerProfile } = useAuthStore();
   const [name, setName] = useState(trainerProfile?.name ?? '');
   const [bio, setBio] = useState(trainerProfile?.bio ?? '');
-  const [city, setCity] = useState(trainerProfile?.city ?? 'Mumbai');
+  const [city, setCity] = useState<string>(trainerProfile?.city ?? 'Mumbai');
   const [experience, setExperience] = useState(trainerProfile?.experience?.toString() ?? '3');
   const [photo, setPhoto] = useState<string | null>(trainerProfile?.profilePhoto ?? null);
 
@@ -47,7 +48,7 @@ export default function TrainerStep1() {
       ...trainerProfile!,
       name: name.trim(),
       bio: bio.trim(),
-      city: city.trim(),
+      city,
       experience: Number(experience),
       profilePhoto: photo ?? undefined,
     } as any);
@@ -86,13 +87,7 @@ export default function TrainerStep1() {
 
           {/* City */}
           <Text style={styles.label}>Primary City *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Mumbai, Delhi, Bengaluru"
-            placeholderTextColor={COLORS.textMuted}
-            value={city}
-            onChangeText={setCity}
-          />
+          <CityPicker value={city} onChange={setCity} />
 
           {/* Experience */}
           <Text style={styles.label}>Years of Experience *</Text>

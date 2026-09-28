@@ -1,3 +1,15 @@
+// Launch cities: Maharashtra metros
+export const CITIES = [
+  'Mumbai',
+  'Thane',
+  'Navi Mumbai',
+  'Pune',
+  'Nagpur',
+  'Nashik',
+  'Chh. Sambhajinagar',
+] as const;
+export type City = typeof CITIES[number];
+
 export const CONFIG = {
   appName: 'Bodivex',
   tagline: 'Find. Train. Transform.',

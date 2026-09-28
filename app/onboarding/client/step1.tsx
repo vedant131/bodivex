@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { Gender } from '../../../types/user';
+import { CityPicker } from '../../../components/shared/CityPicker';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
 
 const TOTAL_STEPS = 7;
@@ -26,6 +27,7 @@ export default function ClientStep1() {
   const [name, setName] = useState(clientProfile?.name ?? '');
   const [age, setAge] = useState(clientProfile?.age?.toString() ?? '');
   const [gender, setGender] = useState<Gender>(clientProfile?.gender ?? 'male');
+  const [city, setCity] = useState<string>(clientProfile?.city ?? 'Mumbai');
   const [photo, setPhoto] = useState<string | null>(clientProfile?.profilePhoto ?? null);
 
   const isValid = name.trim().length >= 2 && Number(age) >= 13 && Number(age) <= 80;
@@ -48,6 +50,7 @@ export default function ClientStep1() {
       name: name.trim(),
       age: Number(age),
       gender,
+      city,
       profilePhoto: photo ?? undefined,
     } as any);
     router.push('/onboarding/client/step2');
@@ -118,6 +121,9 @@ export default function ClientStep1() {
               </TouchableOpacity>
             ))}
           </View>
+
+          <Text style={styles.label}>Your City *</Text>
+          <CityPicker value={city} onChange={setCity} />
 
           <TouchableOpacity
             style={[styles.nextBtn, !isValid && styles.nextBtnDisabled]}

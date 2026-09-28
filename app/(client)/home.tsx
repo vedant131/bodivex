@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,13 @@ import { useTrainerStore } from '../../stores/trainerStore';
 import { COLORS } from '../../constants/colors';
 import { TrainerProfile } from '../../types/trainer';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
+import { CityPicker } from '../../components/shared/CityPicker';
 
 export default function HomeScreen() {
   const { user, clientProfile } = useAuthStore();
   const { trainers, topTrainers, isLoading, fetchTrainers, fetchTopTrainers } = useTrainerStore();
 
-  const city = 'Mumbai'; // Will use GPS-detected city in production
+  const [city, setCity] = useState<string>(clientProfile?.city ?? 'Mumbai');
 
   useEffect(() => {
     fetchTrainers(clientProfile?.fitnessBlueprint?.recommendedFilters
@@ -32,13 +33,16 @@ export default function HomeScreen() {
         }
       : undefined
     );
-    fetchTopTrainers(city);
   }, []);
+
+  useEffect(() => {
+    fetchTopTrainers(city);
+  }, [city]);
 
   const onRefresh = useCallback(() => {
     fetchTrainers();
     fetchTopTrainers(city);
-  }, []);
+  }, [city]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -70,6 +74,10 @@ export default function HomeScreen() {
               </View>
             )}
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.cityRow}>
+          <CityPicker value={city} onChange={setCity} />
         </View>
 
         {/* Search Bar (tap → navigate to search) */}
@@ -181,6 +189,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  cityRow: { paddingHorizontal: 20, marginBottom: 12 },
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
