@@ -68,7 +68,15 @@ for (const [i, t] of TRAINERS.entries()) {
     state: 'Maharashtra',
     specializations: t.specs,
     certifications: [{ name: 'Certified Personal Trainer', issuedBy: 'ACE', year: 2020, verified: true }],
-    medals: [],
+    medals: i === 0
+      ? [
+          { title: 'Mumbai Powerlifting Open', description: 'Silver, 83 kg', year: 2023, kind: 'competition' },
+          { title: "Mr. Maharashtra Men's Physique", description: 'Gold', year: 2022, kind: 'competition' },
+          { title: 'Coached 300+ clients', year: 2024, kind: 'achievement' },
+        ]
+      : i === 6
+      ? [{ title: 'Nagpur Classic Bodybuilding', description: '1st place', year: 2021, kind: 'competition' }]
+      : [],
     experience: t.exp,
     pricingOnline: t.online,
     pricingOffline: t.offline,

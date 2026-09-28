@@ -46,11 +46,13 @@ export function Backdrop({ preset = 'calm' }: { preset?: keyof typeof PRESETS })
 
   const orbs = PRESETS[preset];
   const size = Math.max(width, height);
+  // The drift moves up to ±15px/±12px and scales 6%; overscan so an edge never shows as a dark strip
+  const PAD = 48;
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: T.bg }]} pointerEvents="none">
-      <Animated.View style={[StyleSheet.absoluteFill, drift]}>
-        <Svg width={width} height={height}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: T.bg, overflow: 'hidden' }]} pointerEvents="none">
+      <Animated.View style={[{ position: 'absolute', left: -PAD, top: -PAD, width: width + PAD * 2, height: height + PAD * 2 }, drift]}>
+        <Svg width={width + PAD * 2} height={height + PAD * 2}>
           <Defs>
             {orbs.map((o, i) => (
               <RadialGradient key={i} id={`o${i}`} cx="50%" cy="50%" r="50%">
@@ -60,7 +62,7 @@ export function Backdrop({ preset = 'calm' }: { preset?: keyof typeof PRESETS })
             ))}
           </Defs>
           {orbs.map((o, i) => (
-            <Circle key={i} cx={o.x * width} cy={o.y * height} r={o.r * size * 0.6} fill={`url(#o${i})`} />
+            <Circle key={i} cx={PAD + o.x * width} cy={PAD + o.y * height} r={o.r * size * 0.6} fill={`url(#o${i})`} />
           ))}
         </Svg>
       </Animated.View>

@@ -14,6 +14,8 @@ export interface Medal {
   title: string;
   year: number;
   description?: string;
+  /** Older entries have no kind; treat them as achievements */
+  kind?: 'competition' | 'achievement';
 }
 
 export interface GymLocation {

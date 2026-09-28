@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={{ gap: 12 }}>
-          <RoleCard role="client" icon="flash" title="I want to train" sub="Find and book a verified coach" delay={350} />
+          <RoleCard role="client" icon="search" title="I'm looking for a coach" sub="Find and book a verified trainer" delay={350} />
           <RoleCard role="trainer" icon="barbell" title="I'm a coach" sub="Get clients near you · free to list" delay={450} />
           <Text style={[type.caption, { textAlign: 'center', color: T.text3, marginTop: 8 }]}>
             By continuing you agree to our Terms & Privacy Policy

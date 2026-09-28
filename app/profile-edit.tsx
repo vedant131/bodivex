@@ -15,6 +15,7 @@ import { Button } from '../components/ui/Button';
 import { PressableScale } from '../components/ui/PressableScale';
 import { Avatar, Chip, IconButton } from '../components/ui/Bits';
 import { Field, Input } from '../components/ui/Form';
+import { CredentialsEditor, Entry } from '../components/trainer/CredentialsEditor';
 import { T, type } from '../constants/theme';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../constants/config';
 import { SPECIALIZATIONS, TrainerProfile } from '../types/trainer';
@@ -39,6 +40,15 @@ export default function EditTrainerProfile() {
   const [gymName, setGymName] = useState(p?.gymLocation?.name ?? '');
   const [gymAddress, setGymAddress] = useState(p?.gymLocation?.address ?? '');
   const [languages, setLanguages] = useState<string[]>(p?.languages ?? ['English', 'Hindi']);
+  const [certs, setCerts] = useState<Entry[]>(
+    (p?.certifications ?? []).map((c) => ({ title: c.name, subtitle: c.issuedBy, year: c.year }))
+  );
+  const medalsOf = (kind: 'competition' | 'achievement') =>
+    (p?.medals ?? [])
+      .filter((m) => (m.kind ?? 'achievement') === kind)
+      .map((m) => ({ title: m.title, subtitle: m.description, year: m.year }));
+  const [competitions, setCompetitions] = useState<Entry[]>(medalsOf('competition'));
+  const [achievements, setAchievements] = useState<Entry[]>(medalsOf('achievement'));
   const [saving, setSaving] = useState(false);
 
   if (!p || !user) return null;
@@ -79,6 +89,12 @@ export default function EditTrainerProfile() {
         pricingOffline: offersOffline ? Number(offline) : undefined,
         languages,
         profilePhoto,
+        // Self-reported; the "Verified coach" badge comes from the team's manual review
+        certifications: certs.map((c) => ({ name: c.title, issuedBy: c.subtitle ?? '', year: c.year, verified: false })),
+        medals: [
+          ...competitions.map((m) => ({ title: m.title, description: m.subtitle, year: m.year, kind: 'competition' as const })),
+          ...achievements.map((m) => ({ title: m.title, description: m.subtitle, year: m.year, kind: 'achievement' as const })),
+        ].map((m) => (m.description ? m : { title: m.title, year: m.year, kind: m.kind })),
         gymLocation: offersOffline
           ? { name: gymName.trim(), address: gymAddress.trim(), latitude: 0, longitude: 0, city, state: 'Maharashtra' }
           : undefined,
@@ -166,6 +182,32 @@ export default function EditTrainerProfile() {
               <Input value={gymAddress} onChangeText={setGymAddress} placeholder="Area / address" />
             </Field>
           )}
+
+          <CredentialsEditor
+            label="Certifications"
+            icon="ribbon"
+            entries={certs}
+            onChange={setCerts}
+            titlePh="e.g. ACE Certified Personal Trainer"
+            subtitlePh="Issued by, e.g. ACE"
+            subtitleRequired
+          />
+          <CredentialsEditor
+            label="Competitions"
+            icon="medal"
+            entries={competitions}
+            onChange={setCompetitions}
+            titlePh="e.g. Mumbai Powerlifting Open"
+            subtitlePh="Result, e.g. Silver, 83kg"
+          />
+          <CredentialsEditor
+            label="Achievements"
+            icon="trophy"
+            entries={achievements}
+            onChange={setAchievements}
+            titlePh="e.g. Coached 300+ clients"
+            subtitlePh="Detail (optional)"
+          />
 
           <Field label="Languages">
             <View style={styles.wrap}>

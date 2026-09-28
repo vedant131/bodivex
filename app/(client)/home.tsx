@@ -21,12 +21,6 @@ import { Session } from '../../types/session';
 
 const WEEKLY_GOAL = 3;
 
-const GOALS = [
-  { label: 'Lose weight', spec: 'Weight Loss', icon: 'flame' as const },
-  { label: 'Build muscle', spec: 'Muscle Gain', icon: 'barbell' as const },
-  { label: 'Yoga & mobility', spec: 'Yoga', icon: 'leaf' as const },
-];
-
 const startOfWeek = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -175,32 +169,28 @@ export default function HomeScreen() {
             </PressableScale>
           </View>
 
-          {/* Goal bento */}
-          <View style={[styles.px, { marginTop: 26 }]}>
-            <Section title="What's your goal?" />
-            <View style={styles.bento}>
-              <PressableScale style={{ flex: 1.15 }} onPress={() => router.push({ pathname: '/(client)/search', params: { spec: GOALS[0].spec } })}>
-                <LinearGradient colors={T.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bentoBig}>
-                  <Ionicons name={GOALS[0].icon} size={28} color="#fff" />
-                  <View>
-                    <Text style={styles.bentoBigText}>{GOALS[0].label}</Text>
-                    <Text style={styles.bentoSub}>Fat loss plans · HIIT</Text>
-                  </View>
-                </LinearGradient>
-              </PressableScale>
-              <View style={{ flex: 1, gap: 10 }}>
-                {GOALS.slice(1).map((g, i) => (
-                  <PressableScale key={g.spec} style={{ flex: 1 }} onPress={() => router.push({ pathname: '/(client)/search', params: { spec: g.spec } })}>
-                    <Glass radius={T.radius.lg} style={styles.bentoSmall}>
-                      <View style={[styles.bentoIcon, { backgroundColor: i === 0 ? 'rgba(155,255,58,0.16)' : 'rgba(46,230,240,0.16)' }]}>
-                        <Ionicons name={g.icon} size={18} color={i === 0 ? T.ring2 : T.ring3} />
-                      </View>
-                      <Text style={styles.bentoSmallText}>{g.label}</Text>
-                    </Glass>
-                  </PressableScale>
-                ))}
-              </View>
-            </View>
+          {/* Two quick tiles, each going somewhere different (search already has its own tab) */}
+          <View style={[styles.px, styles.tiles]}>
+            <PressableScale style={{ flex: 1 }} onPress={() => router.push('/(client)/profile')} accessibilityLabel="Your plan">
+              <LinearGradient colors={T.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tile}>
+                <Ionicons name="sparkles" size={24} color="#fff" />
+                <View>
+                  <Text style={styles.tileTitle}>Your plan</Text>
+                  <Text style={styles.tileSub} numberOfLines={2}>
+                    {clientProfile?.fitnessBlueprint?.trainerType ?? 'Goals, style & timeline'}
+                  </Text>
+                </View>
+              </LinearGradient>
+            </PressableScale>
+            <PressableScale style={{ flex: 1 }} onPress={() => router.push('/leaderboard')} accessibilityLabel="Coach rankings">
+              <Glass radius={T.radius.xl} style={styles.tile}>
+                <View style={styles.tileIcon}><Ionicons name="trophy" size={20} color={T.warning} /></View>
+                <View>
+                  <Text style={styles.tileTitle}>Rankings</Text>
+                  <Text style={[styles.tileSub, { color: T.text2 }]}>Top coaches in {city}</Text>
+                </View>
+              </Glass>
+            </PressableScale>
           </View>
 
           {/* Top coaches carousel */}
@@ -228,21 +218,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Arena */}
-          <View style={[styles.px, { marginTop: 24 }]}>
-            <PressableScale onPress={() => router.push('/leaderboard')} accessibilityLabel="Coach rankings">
-              <Glass radius={T.radius.lg} style={styles.arena}>
-                <LinearGradient colors={[T.warning, T.accent2]} style={styles.arenaIcon}>
-                  <Ionicons name="trophy" size={18} color="#fff" />
-                </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={type.headline}>Coach rankings</Text>
-                  <Text style={type.caption}>Top-rated coaches in {city}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={T.text3} />
-              </Glass>
-            </PressableScale>
-          </View>
         </ScrollView>
       </SafeAreaView>
       <CitySheet visible={cityOpen} city={city} onPick={setCity} onClose={() => setCityOpen(false)} />
@@ -267,16 +242,12 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', gap: 10, marginTop: 4 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 54, paddingLeft: 16, paddingRight: 8, marginTop: 14 },
   searchBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: T.glassStrong, alignItems: 'center', justifyContent: 'center' },
-  bento: { flexDirection: 'row', gap: 10, height: 168 },
-  bentoBig: { flex: 1, borderRadius: T.radius.xl, padding: 16, justifyContent: 'space-between' },
-  bentoBigText: { color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
-  bentoSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', marginTop: 2 },
-  bentoSmall: { flex: 1, padding: 12, justifyContent: 'space-between' },
-  bentoIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  bentoSmallText: { color: T.text, fontSize: 14, fontWeight: '800' },
+  tiles: { flexDirection: 'row', gap: 10, height: 132, marginTop: 20 },
+  tile: { flex: 1, borderRadius: T.radius.xl, padding: 16, justifyContent: 'space-between' },
+  tileTitle: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  tileSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  tileIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,176,32,0.16)', alignItems: 'center', justifyContent: 'center' },
   empty: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
-  arena: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  arenaIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   scrim: { flex: 1, backgroundColor: T.scrim, justifyContent: 'flex-end', padding: 12 },
   sheet: { padding: 20, gap: 2, marginBottom: 12 },
   cityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },

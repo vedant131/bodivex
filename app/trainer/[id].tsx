@@ -164,6 +164,24 @@ export default function TrainerProfileScreen() {
                     ))}
                   </>
                 )}
+                {(['competition', 'achievement'] as const).map((kind) => {
+                  const list = (trainer.medals ?? []).filter((m) => (m.kind ?? 'achievement') === kind);
+                  if (!list.length) return null;
+                  return (
+                    <React.Fragment key={kind}>
+                      <Text style={type.micro}>{kind === 'competition' ? 'Competitions' : 'Achievements'}</Text>
+                      {list.map((m, i) => (
+                        <Glass key={i} radius={T.radius.md} style={styles.certRow}>
+                          <Ionicons name={kind === 'competition' ? 'medal' : 'trophy'} size={18} color={T.warning} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={type.body}>{m.title}</Text>
+                            <Text style={type.caption}>{[m.description, m.year].filter(Boolean).join(' · ')}</Text>
+                          </View>
+                        </Glass>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
                 {trainer.languages?.length > 0 && (
                   <Text style={type.caption}>Speaks {trainer.languages.join(', ')}</Text>
                 )}
