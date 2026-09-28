@@ -176,7 +176,7 @@ export default function TrainerProfileManageScreen() {
         style: 'destructive',
         onPress: async () => {
           await signOutUser();
-          router.replace('/(auth)');
+          router.replace('/welcome');
         },
       },
     ]);

@@ -41,7 +41,7 @@ export default function ClientProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await signOutUser();
-          router.replace('/(auth)');
+          router.replace('/welcome');
         },
       },
     ]);

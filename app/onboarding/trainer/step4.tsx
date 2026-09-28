@@ -30,7 +30,7 @@ export default function TrainerStep4() {
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert('Please log in again');
-      router.replace('/(auth)');
+      router.replace('/welcome');
       return;
     }
     setIsSubmitting(true);

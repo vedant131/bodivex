@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { USE_EMULATORS } from '../../services/firebase';
 import { signInWithPhone, createUserProfile, loadSession } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
+import { homeRouteFor } from '../../services/routing';
 import { COLORS } from '../../constants/colors';
 import { UserRole } from '../../types/user';
 
@@ -70,7 +71,7 @@ export default function OTPScreen() {
         session = { user, clientProfile: null, trainerProfile: null };
       }
       setSession(session);
-      router.replace('/'); // entry screen routes by role + onboarding state
+      router.replace(homeRouteFor(session));
     } catch (e: any) {
       Alert.alert('Sign-in failed', e.message);
       setOtp(new Array(OTP_LENGTH).fill(''));
