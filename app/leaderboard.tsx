@@ -22,6 +22,7 @@ import {
 } from '../services/trainers';
 import { TrainerProfile } from '../types/trainer';
 import { COLORS } from '../constants/colors';
+import { Screen } from '../components/ui/Screen';
 
 const { width } = Dimensions.get('window');
 
@@ -47,14 +48,14 @@ export default function LeaderboardScreen() {
   const restTrainers = topThree.length >= 3 ? rankedTrainers.slice(3) : rankedTrainers;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <Screen preset="calm" edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>🏆 Bodivex Arena</Text>
+          <Text style={styles.headerTitle}>Coach rankings</Text>
           <Text style={styles.headerSub}>Competitive rankings across India</Text>
         </View>
       </View>
@@ -69,7 +70,7 @@ export default function LeaderboardScreen() {
                   onPress={() => setScope('india')}
                 >
                   <Text style={[styles.scopePillText, scope === 'india' && styles.scopePillTextActive]}>
-                    🇮🇳 Pan India
+                    All cities
                   </Text>
                 </TouchableOpacity>
 
@@ -78,7 +79,7 @@ export default function LeaderboardScreen() {
                   onPress={() => setScope('city')}
                 >
                   <Text style={[styles.scopePillText, scope === 'city' && styles.scopePillTextActive]}>
-                    📍 {userCity}
+                    {userCity}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -119,13 +120,13 @@ export default function LeaderboardScreen() {
 
                 <View style={styles.podiumRow}>
                   {/* #2 Silver (Left) */}
-                  <PodiumAvatar item={topThree[1]} rank={2} medal="🥈" color="#C0C0C0" height={100} />
+                  <PodiumAvatar item={topThree[1]} rank={2} medal="2" color="#C0C0C0" height={100} />
 
                   {/* #1 Gold (Center) */}
-                  <PodiumAvatar item={topThree[0]} rank={1} medal="🥇" color="#FFD700" height={130} isFirst />
+                  <PodiumAvatar item={topThree[0]} rank={1} medal="1" color="#FFD700" height={130} isFirst />
 
                   {/* #3 Bronze (Right) */}
-                  <PodiumAvatar item={topThree[2]} rank={3} medal="🥉" color="#CD7F32" height={85} />
+                  <PodiumAvatar item={topThree[2]} rank={3} medal="3" color="#CD7F32" height={85} />
                 </View>
               </LinearGradient>
             )}
@@ -165,7 +166,7 @@ export default function LeaderboardScreen() {
                       )}
                     </View>
                     <Text style={styles.trainerMeta}>
-                      {item.trainer.city} · {item.totalSessions}+ workouts · ⭐ {item.rating.toFixed(1)}
+                      {item.trainer.city} · {item.totalSessions}+ workouts · {item.rating.toFixed(1)} rating
                     </Text>
                   </View>
 
@@ -180,7 +181,7 @@ export default function LeaderboardScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 14,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     gap: 12,
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
 
   // Audience Tabs
   audienceTabText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  audienceTabTextActive: { color: COLORS.white, fontWeight: '800' },
+  audienceTabTextActive: { color: COLORS.onColor, fontWeight: '800' },
 
   scrollBody: { paddingHorizontal: 16, paddingTop: 6, gap: 14 },
 
@@ -265,7 +266,7 @@ const styles = StyleSheet.create({
   scopePillContainer: { flexDirection: 'row', gap: 10 },
   scopePill: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
@@ -285,14 +286,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 7,
     borderRadius: 10,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   modeChipActive: { backgroundColor: COLORS.secondary, borderColor: COLORS.secondary },
   modeChipText: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
-  modeChipTextActive: { color: COLORS.white },
+  modeChipTextActive: { color: COLORS.onColor },
 
   // Podium
   podiumContainer: {
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  podiumInitials: { color: COLORS.white, fontSize: 22, fontWeight: '800' },
+  podiumInitials: { color: COLORS.onColor, fontSize: 22, fontWeight: '800' },
   medalPill: {
     position: 'absolute',
     bottom: -6,
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   medalText: { fontSize: 12 },
-  podiumName: { color: COLORS.white, fontSize: 13, fontWeight: '800', marginTop: 10 },
+  podiumName: { color: COLORS.onColor, fontSize: 13, fontWeight: '800', marginTop: 10 },
   podiumCity: { color: 'rgba(255,255,255,0.6)', fontSize: 10, marginBottom: 8 },
   podiumPillar: {
     width: '100%',
@@ -350,7 +351,7 @@ const styles = StyleSheet.create({
 
   // List Card
   listCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     padding: 16,
     gap: 8,
@@ -388,7 +389,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarInitial: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
+  avatarInitial: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
   trainerName: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
   trainerMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   scoreBadge: {

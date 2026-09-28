@@ -7,6 +7,7 @@ import { subscribeToAuthState, loadSession } from '../services/auth';
 import { StyleSheet } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
 import '../global.css';
+import { T } from '../constants/theme';
 
 // @ts-ignore
 if (typeof StyleSheet.setFlag === 'function') {
@@ -36,10 +37,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: T.bg }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }}>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: T.bg } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(client)" />

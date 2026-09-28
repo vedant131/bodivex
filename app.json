@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "scheme": "bodivex",
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundColor": "#FF462B"
+        "backgroundColor": "#060609"
       },
       "package": "in.bodivex.app",
       "permissions": [
@@ -58,7 +58,14 @@
       ],
       "expo-status-bar",
       "expo-font",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#060609",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-image"
     ],

@@ -37,9 +37,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
   },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  chipTextActive: { color: COLORS.white },
+  chipTextActive: { color: COLORS.onColor },
 });

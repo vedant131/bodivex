@@ -19,6 +19,7 @@ import { COLORS } from '../../../constants/colors';
 import { FitnessGoal, FitnessBlueprint, FitnessGoalLabel } from '../../../types/user';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../../services/firebase';
+import { Screen } from '../../../components/ui/Screen';
 
 // ─── Gemini AI Blueprint Generator ──────────────────────────────────────────
 
@@ -125,14 +126,14 @@ export default function BlueprintScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen preset="calm">
       <ScrollView contentContainerStyle={styles.scroll}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingTitle}>Analyzing your profile...</Text>
             <Text style={styles.loadingSubtitle}>
-              Our AI is creating your personalized Fitness Blueprint ✨
+              Building your personal fitness blueprint
             </Text>
           </View>
         ) : blueprint ? (
@@ -142,20 +143,20 @@ export default function BlueprintScreen() {
               colors={[COLORS.secondary, COLORS.accent]}
               style={styles.header}
             >
-              <Text style={styles.headerEmoji}>🤖</Text>
+              <Ionicons name="sparkles" size={34} color={COLORS.onColor} />
               <Text style={styles.headerTitle}>Your Fitness Blueprint</Text>
               <Text style={styles.headerSub}>Personalized for {clientProfile?.name}</Text>
             </LinearGradient>
 
             {/* Blueprint Card */}
             <View style={styles.card}>
-              <InfoRow emoji="🏋️" label="Ideal Trainer" value={blueprint.trainerType} />
+              <InfoRow icon="fitness" label="Ideal Trainer" value={blueprint.trainerType} />
               <Divider />
-              <InfoRow emoji="📋" label="Training Style" value={blueprint.recommendedStyle} />
+              <InfoRow icon="list" label="Training Style" value={blueprint.recommendedStyle} />
               <Divider />
-              <InfoRow emoji="⏳" label="Timeline" value={blueprint.estimatedTimeline} />
+              <InfoRow icon="time" label="Timeline" value={blueprint.estimatedTimeline} />
               <Divider />
-              <InfoRow emoji="💡" label="Tips" value={blueprint.additionalNotes} />
+              <InfoRow icon="bulb" label="Tips" value={blueprint.additionalNotes} />
             </View>
 
             {/* Goals Confirmed */}
@@ -182,7 +183,7 @@ export default function BlueprintScreen() {
               onPress={() => router.replace('/(client)/home')}
               activeOpacity={0.85}
             >
-              <Ionicons name="search" size={20} color={COLORS.white} />
+              <Ionicons name="search" size={20} color={COLORS.onColor} />
               <Text style={styles.findBtnText}>Find My Perfect Trainer</Text>
             </TouchableOpacity>
 
@@ -193,13 +194,13 @@ export default function BlueprintScreen() {
           </Animated.View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value: string }) => (
+const InfoRow = ({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) => (
   <View style={styles.infoRow}>
-    <Text style={styles.infoEmoji}>{emoji}</Text>
+    <Ionicons name={icon} size={20} color={COLORS.primary} />
     <View style={{ flex: 1 }}>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
@@ -224,10 +225,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerEmoji: { fontSize: 40 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.white },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.onColor },
   headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
   card: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -242,7 +243,7 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 22, marginTop: 2 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 2 },
   goalsCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -272,7 +273,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 8,
   },
-  findBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
+  findBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
   regenerateBtn: {
     flexDirection: 'row',
     justifyContent: 'center',

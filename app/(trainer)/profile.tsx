@@ -31,6 +31,7 @@ import {
 import { COLORS } from '../../constants/colors';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA } from '../../types/trainer';
+import { Screen } from '../../components/ui/Screen';
 
 export default function TrainerProfileManageScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
@@ -165,7 +166,7 @@ export default function TrainerProfileManageScreen() {
         prev.map((q) => (q.id === qaId ? { ...q, answer: text, answeredAt: new Date() } : q))
       );
       setReplyTextMap((prev) => ({ ...prev, [qaId]: '' }));
-      Alert.alert('Answer Published! 💬', 'Your response is now visible publicly to all clients.');
+      Alert.alert('Answer published', 'Everyone can now see your answer.');
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -188,7 +189,7 @@ export default function TrainerProfileManageScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <Screen preset="trainer" style={{ paddingBottom: 88 }} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header Card */}
         <View style={styles.headerCard}>
@@ -225,7 +226,7 @@ export default function TrainerProfileManageScreen() {
             onPress={() => router.push(`/trainer/${trainerProfile.id}`)}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.previewTitle}>👁️ View Public Profile</Text>
+              <Text style={styles.previewTitle}>View public profile</Text>
               <Text style={styles.previewSub}>See how clients discover and view your profile</Text>
             </View>
             <Ionicons name="arrow-forward" size={18} color={COLORS.primary} />
@@ -314,7 +315,7 @@ export default function TrainerProfileManageScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.toolTitle}>Client Reviews & Ratings</Text>
                 <Text style={styles.toolSub}>
-                  {reviewsList.length} verified reviews · ⭐ {trainerProfile?.rating?.toFixed(1) || '5.0'}
+                  {reviewsList.length} verified reviews · {trainerProfile?.totalReviews ? trainerProfile.rating.toFixed(1) : 'No'} rating
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
@@ -510,7 +511,7 @@ export default function TrainerProfileManageScreen() {
                 disabled={!beforeUri || !afterUri || isUploadingTransform}
               >
                 {isUploadingTransform ? (
-                  <ActivityIndicator color={COLORS.white} />
+                  <ActivityIndicator color={COLORS.onColor} />
                 ) : (
                   <Text style={styles.saveRateText}>Publish Transformation</Text>
                 )}
@@ -635,7 +636,7 @@ export default function TrainerProfileManageScreen() {
                             disabled={!replyTextMap[item.id]?.trim() || isAnsweringQA === item.id}
                           >
                             {isAnsweringQA === item.id ? (
-                              <ActivityIndicator size="small" color={COLORS.white} />
+                              <ActivityIndicator size="small" color={COLORS.onColor} />
                             ) : (
                               <Text style={styles.replySubmitText}>Post Answer</Text>
                             )}
@@ -713,7 +714,7 @@ export default function TrainerProfileManageScreen() {
                 }}
               >
                 <Text style={styles.askerActionBtnText}>View Full Coach Profile</Text>
-                <Ionicons name="arrow-forward" size={16} color={COLORS.white} />
+                <Ionicons name="arrow-forward" size={16} color={COLORS.onColor} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -774,14 +775,14 @@ export default function TrainerProfileManageScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   headerCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -797,7 +798,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.white, fontSize: 26, fontWeight: '800' },
+  avatarText: { color: COLORS.onColor, fontSize: 26, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary },
   city: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
@@ -824,7 +825,7 @@ const styles = StyleSheet.create({
   previewCard: {
     margin: 16,
     marginBottom: 4,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderRadius: 14,
     padding: 16,
     flexDirection: 'row',
@@ -835,7 +836,7 @@ const styles = StyleSheet.create({
   previewTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
   previewSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   section: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     marginTop: 12,
     padding: 18,
     borderTopWidth: 1,
@@ -882,7 +883,7 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: '700', color: COLORS.danger },
   modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -920,7 +921,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  saveRateText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+  saveRateText: { color: COLORS.onColor, fontWeight: '700', fontSize: 14 },
 
   // Coach Tools
   sectionSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: -4 },
@@ -950,7 +951,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
-  pendingBadgeText: { color: COLORS.white, fontSize: 10, fontWeight: '800' },
+  pendingBadgeText: { color: COLORS.onColor, fontSize: 10, fontWeight: '800' },
 
   // Modal common
   modalHeaderRow: {
@@ -1029,7 +1030,7 @@ const styles = StyleSheet.create({
   qaManageClient: { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
   qaManageQuestion: { fontSize: 13, color: COLORS.textPrimary, marginTop: 2, lineHeight: 18 },
   qaManageAnswerBox: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     padding: 10,
     borderRadius: 10,
     borderLeftWidth: 3,
@@ -1039,7 +1040,7 @@ const styles = StyleSheet.create({
   qaManageAnswerText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2, lineHeight: 17 },
   qaReplyForm: { gap: 8, marginTop: 4 },
   qaReplyInput: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 10,
@@ -1056,7 +1057,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignSelf: 'flex-end',
   },
-  replySubmitText: { color: COLORS.white, fontSize: 12, fontWeight: '800' },
+  replySubmitText: { color: COLORS.onColor, fontSize: 12, fontWeight: '800' },
 
   // Reviews Manage
   reviewManageCard: {
@@ -1108,7 +1109,7 @@ const styles = StyleSheet.create({
   },
   askerModalCard: {
     width: '100%',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 20,
     gap: 16,
@@ -1174,7 +1175,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   askerActionBtnText: {
-    color: COLORS.white,
+    color: COLORS.onColor,
     fontSize: 14,
     fontWeight: '800',
   },

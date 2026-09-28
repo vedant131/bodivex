@@ -7,6 +7,7 @@ import { COLORS } from '../../../constants/colors';
 import { CONFIG } from '../../../constants/config';
 import { useAuthStore } from '../../../stores/authStore';
 import { subscribeToOwnTrainerProfile } from '../../../services/trainers';
+import { Screen } from '../../../components/ui/Screen';
 
 export default function TrainerPendingScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
@@ -19,7 +20,7 @@ export default function TrainerPendingScreen() {
   }, [user?.id]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen preset="trainer">
       <View style={styles.content}>
         <View style={[styles.iconCircle, !approved && { backgroundColor: `${COLORS.warning}18` }]}>
           <Ionicons
@@ -53,12 +54,12 @@ export default function TrainerPendingScreen() {
           <Text style={styles.dashboardBtnText}>Go to Dashboard</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, backgroundColor: COLORS.card },
   content: {
     flex: 1,
     paddingHorizontal: 28,
@@ -98,5 +99,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  dashboardBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
+  dashboardBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
 });
