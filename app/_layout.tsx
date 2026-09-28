@@ -24,7 +24,10 @@ export default function RootLayout() {
         return;
       }
       try {
-        setSession(await loadSession(firebaseUser.uid));
+        const session = await loadSession(firebaseUser.uid);
+        // No user doc yet = first sign-in; the OTP screen creates it and sets the session.
+        if (session.user) setSession(session);
+        else useAuthStore.getState().setLoading(false);
       } catch (e) {
         console.warn('Could not load profile — is the emulator running? (npm run emulators)', e);
         setSession({ user: null, clientProfile: null, trainerProfile: null });

@@ -82,7 +82,7 @@ export default function WelcomeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.trainerBtnText}>I'm a Fitness Coach</Text>
-              <Text style={styles.trainerBtnSub}>Get clients, showcase proofs & earn guaranteed</Text>
+              <Text style={styles.trainerBtnSub}>Get clients near you. Free to list.</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
           </TouchableOpacity>

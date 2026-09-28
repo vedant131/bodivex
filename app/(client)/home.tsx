@@ -24,25 +24,21 @@ export default function HomeScreen() {
   const { trainers, topTrainers, isLoading, fetchTrainers, fetchTopTrainers } = useTrainerStore();
 
   const [city, setCity] = useState<string>(clientProfile?.city ?? 'Mumbai');
-
   useEffect(() => {
-    fetchTrainers(clientProfile?.fitnessBlueprint?.recommendedFilters
-      ? {
-          specializations: clientProfile.fitnessBlueprint.recommendedFilters.specializations,
-          sessionPreference: clientProfile.sessionPreference,
-        }
-      : undefined
-    );
-  }, []);
+    if (clientProfile?.city) setCity(clientProfile.city);
+  }, [clientProfile?.city]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    fetchTrainers({
+      city,
+      specializations: clientProfile?.fitnessBlueprint?.recommendedFilters?.specializations,
+      sessionPreference: clientProfile?.sessionPreference,
+    });
     fetchTopTrainers(city);
-  }, [city]);
+  }, [city, clientProfile]);
 
-  const onRefresh = useCallback(() => {
-    fetchTrainers();
-    fetchTopTrainers(city);
-  }, [city]);
+  useEffect(load, [load]);
+  const onRefresh = load;
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -130,9 +126,9 @@ export default function HomeScreen() {
             <Ionicons name="trophy" size={22} color="#D97706" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.arenaBannerTitle}>Bodivex Arena · Coach & Client Rankings</Text>
+            <Text style={styles.arenaBannerTitle}>Bodivex Arena · Coach Rankings</Text>
             <Text style={styles.arenaBannerSub}>
-              Discover India's top certified coaches and daily client streak leaders
+              See the top-rated coaches in your city
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />

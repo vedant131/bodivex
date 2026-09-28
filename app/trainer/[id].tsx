@@ -190,11 +190,6 @@ export default function TrainerProfileScreen() {
             <Text style={styles.statBoxValue}>{trainer.experience} yrs</Text>
             <Text style={styles.statBoxLabel}>Experience</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBox}>
-            <Text style={[styles.statBoxValue, { color: COLORS.success }]}>98%</Text>
-            <Text style={styles.statBoxLabel}>Satisfaction</Text>
-          </View>
         </View>
 
         {/* Specialization Tags */}
