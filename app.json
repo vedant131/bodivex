@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Bodivex",
+    "slug": "bodivex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "bodivex",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.bodivex.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Bodivex needs camera access for profile photos and progress tracking.",
+        "NSPhotoLibraryUsageDescription": "Bodivex needs photo library access to upload your profile photo and transformations.",
+        "NSMicrophoneUsageDescription": "Bodivex needs microphone access for voice notes in chat."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#FF462B"
+      },
+      "package": "in.bodivex.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Bodivex needs camera access for profile photos and progress tracking."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bodivex needs photo library access to upload your profile photo and transformations."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Bodivex uses location to find trainers near you."
+        }
+      ],
+      "expo-status-bar",
+      "expo-font",
+      "expo-splash-screen",
+      "@react-native-community/datetimepicker",
+      "expo-image"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
