@@ -12,12 +12,13 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useAuthStore } from '../../stores/authStore';
+import { logout as signOutUser } from '../../services/auth';
 import { COLORS } from '../../constants/colors';
 import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel } from '../../types/user';
 
 export default function ClientProfileScreen() {
-  const { user, clientProfile, logout } = useAuthStore();
+  const { user, clientProfile } = useAuthStore();
 
   const bmi =
     clientProfile?.weight && clientProfile?.height
@@ -38,8 +39,8 @@ export default function ClientProfileScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => {
-          logout();
+        onPress: async () => {
+          await signOutUser();
           router.replace('/(auth)');
         },
       },

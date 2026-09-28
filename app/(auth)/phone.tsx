@@ -14,7 +14,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
-import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types/user';
 
 const INDIA_DIAL_CODE = '+91';
@@ -23,7 +22,6 @@ export default function PhoneScreen() {
   const { role } = useLocalSearchParams<{ role: UserRole }>();
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { setPhoneNumber } = useAuthStore();
   const inputRef = useRef<TextInput>(null);
 
   const isValid = phone.length === 10 && /^\d+$/.test(phone);
@@ -34,7 +32,6 @@ export default function PhoneScreen() {
     try {
       // Store phone and navigate to OTP screen
       const fullPhone = `${INDIA_DIAL_CODE}${phone}`;
-      setPhoneNumber(fullPhone);
       router.push({
         pathname: '/(auth)/otp',
         params: { role, phone: fullPhone },

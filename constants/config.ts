@@ -25,15 +25,14 @@ export const CONFIG = {
   maxVideoIntroSeconds: 60,
   sessionBookingWindowMins: 30, // trainer must accept within 30 mins
 
-  // Firebase — replace with your actual config from Firebase Console
+  // Firebase — `demo-` project id works only with the local emulator.
+  // Replace with the real config from the Firebase Console before launch.
   firebase: {
-    apiKey: 'YOUR_FIREBASE_API_KEY',
-    authDomain: 'bodivex-app.firebaseapp.com',
-    projectId: 'bodivex-app',
-    storageBucket: 'bodivex-app.appspot.com',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    appId: 'YOUR_APP_ID',
-    measurementId: 'YOUR_MEASUREMENT_ID',
+    apiKey: 'demo-api-key',
+    authDomain: 'demo-bodivex.firebaseapp.com',
+    projectId: 'demo-bodivex',
+    storageBucket: 'demo-bodivex.appspot.com',
+    appId: 'demo-app-id',
   },
 
   // Agora — replace with your Agora App ID

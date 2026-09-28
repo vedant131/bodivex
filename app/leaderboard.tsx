@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,29 +14,33 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../stores/authStore';
 import {
-  getRankedTrainers,
-  MOCK_CLIENT_LEADERBOARD,
+  rankTrainers,
   RankingScope,
   RankingMode,
-  RankingAudience,
   RankedTrainer,
+  getTrainers,
 } from '../services/trainers';
+import { TrainerProfile } from '../types/trainer';
 import { COLORS } from '../constants/colors';
 
 const { width } = Dimensions.get('window');
 
 export default function LeaderboardScreen() {
-  const { user, trainerProfile } = useAuthStore();
-  const [audience, setAudience] = useState<RankingAudience>('trainers');
-  const [scope, setScope] = useState<RankingScope>('india');
+  const { trainerProfile, clientProfile } = useAuthStore();
+  const [scope, setScope] = useState<RankingScope>('city');
   const [mode, setMode] = useState<RankingMode>('all');
+  const [trainers, setTrainers] = useState<TrainerProfile[]>([]);
 
-  const userCity = trainerProfile?.city || 'Mumbai';
+  const userCity = trainerProfile?.city || clientProfile?.city || 'Mumbai';
 
-  // Ranked trainers calculated based on selected scope & mode
-  const rankedTrainers = useMemo(() => {
-    return getRankedTrainers(scope, userCity, mode);
-  }, [scope, userCity, mode]);
+  useEffect(() => {
+    getTrainers().then(setTrainers).catch((e) => console.warn('Leaderboard load failed', e));
+  }, []);
+
+  const rankedTrainers = useMemo(
+    () => rankTrainers(trainers, scope, userCity, mode),
+    [trainers, scope, userCity, mode]
+  );
 
   const topThree = rankedTrainers.slice(0, 3);
   const restTrainers = rankedTrainers.slice(3);
@@ -54,46 +58,8 @@ export default function LeaderboardScreen() {
         </View>
       </View>
 
-      {/* Main Audience Switcher (Trainers vs Clients) */}
-      <View style={styles.audienceTabWrap}>
-        <TouchableOpacity
-          style={[styles.audienceTab, audience === 'trainers' && styles.audienceTabActive]}
-          onPress={() => setAudience('trainers')}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="barbell"
-            size={16}
-            color={audience === 'trainers' ? COLORS.white : COLORS.textSecondary}
-          />
-          <Text
-            style={[styles.audienceTabText, audience === 'trainers' && styles.audienceTabTextActive]}
-          >
-            Coach Leaderboard
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.audienceTab, audience === 'clients' && styles.audienceTabActive]}
-          onPress={() => setAudience('clients')}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="flame"
-            size={16}
-            color={audience === 'clients' ? COLORS.white : COLORS.textSecondary}
-          />
-          <Text
-            style={[styles.audienceTabText, audience === 'clients' && styles.audienceTabTextActive]}
-          >
-            Client Streaks
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-        {audience === 'trainers' ? (
-          <>
+        <>
             {/* Filters Row 1: Scope (Pan-India vs My City) */}
             <View style={styles.filterSection}>
               <View style={styles.scopePillContainer}>
@@ -209,49 +175,7 @@ export default function LeaderboardScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-          </>
-        ) : (
-          /* Client Transformation & Workout Streaks */
-          <View style={styles.listCard}>
-            <View style={styles.clientStreakHeader}>
-              <View style={styles.fireIconBg}>
-                <Ionicons name="flame" size={24} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listHeaderTitle}>Workout Consistency Hall of Fame</Text>
-                <Text style={styles.clientStreakSub}>
-                  Clients with highest completed workouts & daily logged streaks
-                </Text>
-              </View>
-            </View>
-
-            {MOCK_CLIENT_LEADERBOARD.map((c) => (
-              <View key={c.id} style={styles.rankRow}>
-                <View style={[styles.rankNumberBox, c.rank <= 3 && styles.rankNumberBoxTop]}>
-                  <Text style={[styles.rankNumberText, c.rank <= 3 && { color: COLORS.white }]}>
-                    {c.rank === 1 ? '🥇' : c.rank === 2 ? '🥈' : c.rank === 3 ? '🥉' : `#${c.rank}`}
-                  </Text>
-                </View>
-
-                <View style={[styles.trainerAvatar, { backgroundColor: `${COLORS.primary}20` }]}>
-                  <Text style={[styles.avatarInitial, { color: COLORS.primary }]}>{c.name[0]}</Text>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.trainerName}>{c.name}</Text>
-                  <Text style={styles.trainerMeta}>
-                    {c.city} · {c.totalWorkouts} sessions completed · {c.level}
-                  </Text>
-                </View>
-
-                <View style={styles.streakBadge}>
-                  <Ionicons name="flame" size={14} color="#E55A25" />
-                  <Text style={styles.streakText}>{c.streakDays}d</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        </>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -330,31 +254,6 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 1 },
 
   // Audience Tabs
-  audienceTabWrap: {
-    flexDirection: 'row',
-    margin: 16,
-    marginBottom: 8,
-    backgroundColor: '#E9ECEF',
-    borderRadius: 14,
-    padding: 4,
-    gap: 4,
-  },
-  audienceTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  audienceTabActive: {
-    backgroundColor: COLORS.primary,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
   audienceTabText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
   audienceTabTextActive: { color: COLORS.white, fontWeight: '800' },
 

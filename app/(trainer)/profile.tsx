@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../stores/authStore';
+import { logout as signOutUser } from '../../services/auth';
 import {
   updateTrainerRates,
   updateTrainerProfile,
@@ -31,7 +32,7 @@ import { COLORS } from '../../constants/colors';
 import { Transformation, TrainerQA } from '../../types/trainer';
 
 export default function TrainerProfileManageScreen() {
-  const { user, trainerProfile, setTrainerProfile, logout } = useAuthStore();
+  const { user, trainerProfile, setTrainerProfile } = useAuthStore();
   const [showEditRatesModal, setShowEditRatesModal] = useState(false);
   const [onlineRate, setOnlineRate] = useState(trainerProfile?.pricingOnline?.toString() ?? '499');
   const [offlineRate, setOfflineRate] = useState(trainerProfile?.pricingOffline?.toString() ?? '799');
@@ -61,7 +62,7 @@ export default function TrainerProfileManageScreen() {
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [reviewsList, setReviewsList] = useState<any[]>([]);
 
-  const activeTrainerId = trainerProfile?.id || user?.id || 'trainer_demo';
+  const activeTrainerId = trainerProfile?.id ?? user?.id ?? '';
 
   useEffect(() => {
     if (activeTrainerId) {
@@ -136,10 +137,7 @@ export default function TrainerProfileManageScreen() {
         clientConsentGiven: true,
       });
 
-      Alert.alert(
-        'Transformation Uploaded! 🚀',
-        'Your client transformation is now live on your public profile and AI-verified for authenticity.'
-      );
+      Alert.alert('Uploaded', 'The transformation is now on your public profile.');
       setBeforeUri(null);
       setAfterUri(null);
       setCaption('');
@@ -176,8 +174,8 @@ export default function TrainerProfileManageScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => {
-          logout();
+        onPress: async () => {
+          await signOutUser();
           router.replace('/(auth)');
         },
       },

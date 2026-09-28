@@ -1,76 +1,45 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, UserRole, ClientProfile } from '../types/user';
 import { TrainerProfile } from '../types/trainer';
 
+// Not persisted: Firebase Auth keeps the login, and the profile is reloaded
+// from Firestore on start (see app/_layout.tsx), so the cache can't go stale.
 interface AuthState {
   user: User | null;
   clientProfile: ClientProfile | null;
   trainerProfile: TrainerProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isOnboardingComplete: boolean;
-  phoneNumber: string;
 
-  // Actions
+  setSession: (s: { user: User | null; clientProfile: ClientProfile | null; trainerProfile: TrainerProfile | null }) => void;
   setUser: (user: User | null) => void;
   setClientProfile: (profile: ClientProfile | null) => void;
   setTrainerProfile: (profile: TrainerProfile | null) => void;
   setLoading: (loading: boolean) => void;
-  setPhoneNumber: (phone: string) => void;
-  setOnboardingComplete: (complete: boolean) => void;
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      clientProfile: null,
-      trainerProfile: null,
-      isLoading: true,
-      isAuthenticated: false,
-      isOnboardingComplete: false,
-      phoneNumber: '',
+export const useAuthStore = create<AuthState>()((set) => ({
+  user: null,
+  clientProfile: null,
+  trainerProfile: null,
+  isLoading: true,
+  isAuthenticated: false,
 
-      setUser: (user) =>
-        set({ user, isAuthenticated: !!user, isLoading: false }),
+  setSession: ({ user, clientProfile, trainerProfile }) =>
+    set({ user, clientProfile, trainerProfile, isAuthenticated: !!user, isLoading: false }),
 
-      setClientProfile: (clientProfile) => set({ clientProfile }),
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-      setTrainerProfile: (trainerProfile) => set({ trainerProfile }),
+  setClientProfile: (clientProfile) => set({ clientProfile }),
 
-      setLoading: (isLoading) => set({ isLoading }),
+  setTrainerProfile: (trainerProfile) => set({ trainerProfile }),
 
-      setPhoneNumber: (phoneNumber) => set({ phoneNumber }),
+  setLoading: (isLoading) => set({ isLoading }),
 
-      setOnboardingComplete: (isOnboardingComplete) =>
-        set({ isOnboardingComplete }),
-
-      logout: () =>
-        set({
-          user: null,
-          clientProfile: null,
-          trainerProfile: null,
-          isAuthenticated: false,
-          isOnboardingComplete: false,
-          phoneNumber: '',
-        }),
-    }),
-    {
-      name: 'bodivex-auth',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        user: state.user,
-        clientProfile: state.clientProfile,
-        trainerProfile: state.trainerProfile,
-        isAuthenticated: state.isAuthenticated,
-        isOnboardingComplete: state.isOnboardingComplete,
-      }),
-    }
-  )
-);
+  logout: () =>
+    set({ user: null, clientProfile: null, trainerProfile: null, isAuthenticated: false }),
+}));
 
 // Derived selectors
 export const useRole = () => useAuthStore((s) => s.user?.role as UserRole | undefined);

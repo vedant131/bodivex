@@ -15,6 +15,8 @@ import { COLORS } from '../../../constants/colors';
 import { CONFIG } from '../../../constants/config';
 import { useAuthStore } from '../../../stores/authStore';
 import { createTrainerProfile } from '../../../services/trainers';
+import { updateUserProfile } from '../../../services/auth';
+import { uploadImage } from '../../../services/storage';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
 
 const TOTAL_STEPS = 5;
@@ -22,7 +24,7 @@ const TOTAL_STEPS = 5;
 // Verification is manual for v1: the Bodivex team checks ID + certificates
 // with the trainer, then sets kycStatus = 'approved' in the Firebase console.
 export default function TrainerStep4() {
-  const { user, trainerProfile, setTrainerProfile } = useAuthStore();
+  const { user, trainerProfile, setTrainerProfile, setUser } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -49,11 +51,18 @@ export default function TrainerStep4() {
         gymLocation: trainerProfile?.gymLocation,
         sessionPreference: trainerProfile?.sessionPreference ?? 'both',
         languages: trainerProfile?.languages || ['English', 'Hindi'],
-        profilePhoto: trainerProfile?.profilePhoto,
+        profilePhoto: trainerProfile?.profilePhoto
+          ? await uploadImage(trainerProfile.profilePhoto, `users/${user.id}/profile.jpg`)
+          : undefined,
       };
 
-      const trainerId = await createTrainerProfile(profileData);
-      setTrainerProfile({ id: trainerId, ...profileData } as any);
+      await createTrainerProfile(user.id, profileData);
+      await updateUserProfile(user.id, { name: profileData.name });
+      setUser({ ...user, name: profileData.name });
+      setTrainerProfile({
+        id: user.id, ...profileData, rating: 0, totalReviews: 0, totalSessions: 0,
+        isKYCApproved: false, kycStatus: 'pending', isAvailableNow: false, availabilityStatus: 'offline',
+      } as any);
       router.replace('/onboarding/trainer/pending');
     } catch (e: any) {
       Alert.alert('Could not submit', e.message);

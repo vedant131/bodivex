@@ -12,8 +12,8 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, COLLECTIONS } from '../../../services/firebase';
+import { saveClientProfile, updateUserProfile } from '../../../services/auth';
+import { uploadImage } from '../../../services/storage';
 import { useAuthStore } from '../../../stores/authStore';
 import { COLORS } from '../../../constants/colors';
 import { FitnessGoal, FitnessBlueprint, FitnessGoalLabel } from '../../../types/user';
@@ -113,7 +113,8 @@ const getFallbackBlueprint = (goals: FitnessGoal[], fitnessLevel: string): Fitne
 };
 
 export default function BlueprintScreen() {
-  const { clientProfile, user, setClientProfile } = useAuthStore();
+  const { clientProfile, user, setClientProfile, setUser } = useAuthStore();
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [blueprint, setBlueprint] = useState<FitnessBlueprint | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -121,6 +122,23 @@ export default function BlueprintScreen() {
   useEffect(() => {
     generateBlueprint();
   }, []);
+
+  const saveProfile = async (bp: FitnessBlueprint) => {
+    if (!user || !clientProfile) return;
+    try {
+      const profilePhoto = clientProfile.profilePhoto
+        ? await uploadImage(clientProfile.profilePhoto, `users/${user.id}/profile.jpg`)
+        : undefined;
+      const profile = { ...clientProfile, profilePhoto, fitnessBlueprint: bp, userId: user.id };
+      await saveClientProfile(user.id, profile);
+      await updateUserProfile(user.id, { name: clientProfile.name, ...(profilePhoto && { profilePhoto }) });
+      setUser({ ...user, name: clientProfile.name, profilePhoto });
+      setClientProfile(profile);
+      setSaveError(null);
+    } catch (e: any) {
+      setSaveError(e.message);
+    }
+  };
 
   const generateBlueprint = async () => {
     setIsLoading(true);
@@ -134,16 +152,7 @@ export default function BlueprintScreen() {
         clientProfile?.goals ?? [FitnessGoal.GENERAL_FITNESS]
       );
       setBlueprint(bp);
-      // Save to Firestore non-blockingly
-      if (user?.id && !user.id.startsWith('dev_')) {
-        addDoc(collection(db, COLLECTIONS.CLIENTS), {
-          ...clientProfile,
-          userId: user.id,
-          fitnessBlueprint: bp,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }).catch((e) => console.log('Firestore write skipped/failed:', e));
-      }
+      if (user) await saveProfile(bp);
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     } catch (e) {
       console.error('Blueprint error:', e);
@@ -198,8 +207,15 @@ export default function BlueprintScreen() {
               </View>
             </View>
 
+            {saveError && (
+              <TouchableOpacity onPress={() => saveProfile(blueprint)}>
+                <Text style={styles.saveError}>Couldn't save your profile ({saveError}). Tap to retry.</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={styles.findBtn}
+              style={[styles.findBtn, saveError ? { opacity: 0.5 } : null]}
+              disabled={!!saveError}
               onPress={() => router.replace('/(client)/home')}
               activeOpacity={0.85}
             >
@@ -231,6 +247,7 @@ const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value:
 const Divider = () => <View style={styles.divider} />;
 
 const styles = StyleSheet.create({
+  saveError: { color: COLORS.danger, fontSize: 13, textAlign: 'center', marginBottom: 8 },
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 24, gap: 16 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 120, gap: 16 },

@@ -3,9 +3,7 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../services/firebase';
-import { getUserProfile } from '../services/auth';
+import { subscribeToAuthState, loadSession } from '../services/auth';
 import { StyleSheet } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
 import '../global.css';
@@ -17,38 +15,21 @@ if (typeof StyleSheet.setFlag === 'function') {
 }
 
 export default function RootLayout() {
-  const { setUser, setLoading, isAuthenticated, isOnboardingComplete, user } = useAuthStore();
+  const setSession = useAuthStore((s) => s.setSession);
 
   useEffect(() => {
-    if (!auth || typeof (auth as any).onAuthStateChanged !== 'function') {
-      setLoading(false);
-      return;
-    }
-    try {
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser) {
-          try {
-            const profile = await getUserProfile(firebaseUser.uid);
-            if (profile) {
-              setUser(profile);
-            } else {
-              setLoading(false);
-            }
-          } catch {
-            setLoading(false);
-          }
-        } else {
-          setUser(null);
-        }
-      });
-      return () => {
-        if (typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
-      };
-    } catch {
-      setLoading(false);
-    }
+    return subscribeToAuthState(async (firebaseUser) => {
+      if (!firebaseUser) {
+        setSession({ user: null, clientProfile: null, trainerProfile: null });
+        return;
+      }
+      try {
+        setSession(await loadSession(firebaseUser.uid));
+      } catch (e) {
+        console.warn('Could not load profile — is the emulator running? (npm run emulators)', e);
+        setSession({ user: null, clientProfile: null, trainerProfile: null });
+      }
+    });
   }, []);
 
   return (

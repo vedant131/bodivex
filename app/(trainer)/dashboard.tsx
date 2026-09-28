@@ -46,17 +46,19 @@ export default function TrainerDashboardScreen() {
   }, [trainerId]);
 
   const handleToggleAvailability = async (value: boolean) => {
+    if (!trainerProfile) return;
     setIsAvailableNow(value);
-    const activeId = trainerProfile?.id || user?.id || 'trainer_demo';
-    if (trainerProfile) {
+    try {
+      await updateAvailability(trainerProfile.id, value);
       setTrainerProfile({
         ...trainerProfile,
-        id: activeId,
         isAvailableNow: value,
         availabilityStatus: value ? 'available_now' : 'offline',
       });
+    } catch (e: any) {
+      setIsAvailableNow(!value);
+      Alert.alert('Could not update availability', e.message);
     }
-    await updateAvailability(activeId, value);
   };
 
   const handleAccept = async (sessionId: string, clientName: string) => {

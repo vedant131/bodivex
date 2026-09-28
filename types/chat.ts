@@ -25,6 +25,7 @@ export interface Chat {
   lastMessageAt?: Date;
   unreadCount: Record<string, number>; // userId -> count
   sessionId?: string;
+  trainerId: string;
   isUnlocked: boolean; // false until trainer accepts booking
   createdAt: Date;
 }

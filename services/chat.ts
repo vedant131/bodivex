@@ -11,6 +11,7 @@ import {
   limit,
   onSnapshot,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
 import { Chat, Message, MessageType, ScheduledCheckIn } from '../types/chat';
@@ -33,10 +34,12 @@ const toChat = (id: string, data: any): Chat => ({
 // ─── Chat Management ──────────────────────────────────────────────────────────
 
 export const getOrCreateChat = async (
-  userId1: string,
-  userId2: string,
+  client: { id: string; name: string },
+  trainer: { id: string; name: string },
   sessionId?: string
 ): Promise<string> => {
+  const userId1 = client.id;
+  const userId2 = trainer.id;
   const col = collection(db, COLLECTIONS.CHATS);
   // Check if chat already exists between these two users
   const q = query(col, where('participants', 'array-contains', userId1));
@@ -50,13 +53,15 @@ export const getOrCreateChat = async (
   // Create new chat (locked until trainer accepts session)
   const newChat: Omit<Chat, 'id'> = {
     participants: [userId1, userId2],
-    participantNames: {},
+    participantNames: { [userId1]: client.name, [userId2]: trainer.name },
+    trainerId: userId2, // only the trainer may unlock the chat (see firestore.rules)
     unreadCount: { [userId1]: 0, [userId2]: 0 },
     ...(sessionId && { sessionId }),
     isUnlocked: false,
     createdAt: new Date(),
   };
-  const ref = await addDoc(col, { ...newChat, createdAt: serverTimestamp() });
+  // lastMessageAt is set now so the chat shows in lists ordered by it
+  const ref = await addDoc(col, { ...newChat, createdAt: serverTimestamp(), lastMessageAt: serverTimestamp() });
   return ref.id;
 };
 
@@ -85,11 +90,16 @@ export const sendMessage = async (
       ? '🎙️ Voice message'
       : 'Message';
 
+  const participants: string[] = (await getDoc(chatRef)).data()?.participants ?? [];
+  const unread = Object.fromEntries(
+    participants.filter((p) => p !== message.senderId).map((p) => [`unreadCount.${p}`, increment(1)])
+  );
   await updateDoc(chatRef, {
     lastMessage: preview,
     lastMessageType: message.type,
     lastMessageAt: serverTimestamp(),
     [`unreadCount.${message.senderId}`]: 0,
+    ...unread,
   });
 };
 

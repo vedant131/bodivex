@@ -12,12 +12,11 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithPhoneNumber } from 'firebase/auth';
-import { auth } from '../../services/firebase';
-import { createUserProfile, getUserProfile } from '../../services/auth';
+import { USE_EMULATORS } from '../../services/firebase';
+import { signInWithPhone, createUserProfile, loadSession } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
 import { COLORS } from '../../constants/colors';
-import { UserRole, User } from '../../types/user';
+import { UserRole } from '../../types/user';
 
 const OTP_LENGTH = 6;
 
@@ -26,29 +25,15 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  const [confirmation, setConfirmation] = useState<any>(null);
   const inputs = useRef<(TextInput | null)[]>([]);
-  const { setUser } = useAuthStore();
+  const setSession = useAuthStore((s) => s.setSession);
 
   useEffect(() => {
-    sendOTP();
     const timer = setInterval(() => {
       setCountdown((c) => (c > 0 ? c - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const sendOTP = async () => {
-    try {
-      // NOTE: Firebase phone auth needs a real device / reCAPTCHA for production
-      // For development, use Firebase test phone numbers
-      const confirm = await signInWithPhoneNumber(auth, phone, (globalThis as any).recaptchaVerifier);
-      setConfirmation(confirm);
-    } catch (e: any) {
-      // In development without reCAPTCHA, we'll mock this
-      console.log('OTP send error (expected in dev):', e.message);
-    }
-  };
 
   const handleOtpChange = (value: string, index: number) => {
     const newOtp = [...otp];
@@ -77,70 +62,17 @@ export default function OTPScreen() {
     Keyboard.dismiss();
     setIsLoading(true);
     try {
-      let uid: string;
-
-      if (confirmation) {
-        const result = await confirmation.confirm(code);
-        uid = result.user.uid;
-      } else {
-        // Dev mode - accept any 6-digit code
-        uid = `dev_${(phone || 'user').replace('+', '')}`;
+      // Note: the code isn't checked in dev (emulator); real SMS OTP comes with the launch build
+      const fbUser = await signInWithPhone(phone);
+      let session = await loadSession(fbUser.uid);
+      if (!session.user) {
+        const user = await createUserProfile(fbUser.uid, { phone, role: role ?? 'client' });
+        session = { user, clientProfile: null, trainerProfile: null };
       }
-
-      // If dev mode without active Firebase, instantly create user locally and continue
-      if (!confirmation || uid.startsWith('dev_')) {
-        const devUser: User = {
-          id: uid,
-          phone: phone || '+919999999999',
-          role: (role as UserRole) || 'client',
-          name: '',
-          kycStatus: 'not_started',
-          aadhaarVerified: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        setUser(devUser);
-        setIsLoading(false);
-        if (role === 'trainer') {
-          router.replace('/onboarding/trainer/step1');
-        } else {
-          router.replace('/onboarding/client/step1');
-        }
-        return;
-      }
-
-      // Check if user exists in Firestore
-      let userProfile = await getUserProfile(uid);
-      if (!userProfile) {
-        try {
-          await createUserProfile(uid, { phone, role: role as UserRole });
-          userProfile = await getUserProfile(uid);
-        } catch {}
-      }
-
-      if (!userProfile) {
-        userProfile = {
-          id: uid,
-          phone,
-          role: (role as UserRole) || 'client',
-          name: '',
-          kycStatus: 'not_started',
-          aadhaarVerified: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-      }
-
-      setUser(userProfile);
-
-      // Route based on role and onboarding status
-      if (role === 'trainer') {
-        router.replace('/onboarding/trainer/step1');
-      } else {
-        router.replace('/onboarding/client/step1');
-      }
+      setSession(session);
+      router.replace('/'); // entry screen routes by role + onboarding state
     } catch (e: any) {
-      Alert.alert('Invalid OTP', 'The code you entered is incorrect. Please try again.');
+      Alert.alert('Sign-in failed', e.message);
       setOtp(new Array(OTP_LENGTH).fill(''));
       inputs.current[0]?.focus();
     } finally {
@@ -165,6 +97,9 @@ export default function OTPScreen() {
           Enter the 6-digit OTP sent to{'\n'}
           <Text style={styles.phoneText}>{maskedPhone}</Text>
         </Text>
+        {USE_EMULATORS && (
+          <Text style={styles.devHint}>Dev mode: any 6 digits work (local emulator)</Text>
+        )}
 
         {/* OTP Input */}
         <View style={styles.otpRow}>
@@ -201,7 +136,7 @@ export default function OTPScreen() {
           {countdown > 0 ? (
             <Text style={styles.countdown}>Resend in {countdown}s</Text>
           ) : (
-            <TouchableOpacity onPress={() => { setCountdown(30); sendOTP(); }}>
+            <TouchableOpacity onPress={() => setCountdown(30)}>
               <Text style={styles.resendLink}>Resend OTP</Text>
             </TouchableOpacity>
           )}
@@ -212,6 +147,7 @@ export default function OTPScreen() {
 }
 
 const styles = StyleSheet.create({
+  devHint: { fontSize: 12, color: COLORS.warning, textAlign: 'center', marginTop: 6 },
   container: { flex: 1, backgroundColor: COLORS.white },
   backBtn: { margin: 24, alignSelf: 'flex-start' },
   content: { flex: 1, paddingHorizontal: 24, gap: 16 },

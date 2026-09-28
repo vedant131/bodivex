@@ -11,18 +11,12 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
-import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types/user';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
-  const { setPhoneNumber } = useAuthStore();
-
   const handleSelectRole = (role: UserRole) => {
-    useAuthStore.getState().setUser(null);
-    // Store role intent temporarily
-    useAuthStore.setState({ user: null });
     router.push({ pathname: '/(auth)/phone', params: { role } });
   };
 

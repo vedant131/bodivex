@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   addDoc,
+  setDoc,
   updateDoc,
   query,
   where,
@@ -32,7 +33,7 @@ export const createBooking = async (
   trainer: TrainerProfile
 ): Promise<string> => {
   // Chat stays locked until the trainer accepts
-  const chatId = await getOrCreateChat(clientId, trainer.userId);
+  const chatId = await getOrCreateChat({ id: clientId, name: clientName }, { id: trainer.id, name: trainer.name });
 
   const sessionData: Omit<Session, 'id' | 'createdAt' | 'updatedAt'> = {
     clientId,
@@ -103,7 +104,7 @@ export const clientCompleteSession = async (
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
-      await addDoc(collection(db, COLLECTIONS.REVIEWS), {
+      await setDoc(doc(db, COLLECTIONS.REVIEWS, sessionId), {
         sessionId,
         clientId: data.clientId,
         clientName: data.clientName,

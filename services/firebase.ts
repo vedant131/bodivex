@@ -1,24 +1,45 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// @ts-ignore
-import { initializeAuth, getAuth } from 'firebase/auth';
-import { getFirestore, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import {
+  initializeAuth,
+  getAuth,
+  connectAuthEmulator,
+  Auth,
+  // @ts-ignore — exported by the React Native build of firebase/auth only
+  getReactNativePersistence,
+} from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { CONFIG } from '../constants/config';
 
-// Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(CONFIG.firebase) : getApp();
+// Local development runs against the Firebase Emulator Suite (`npm run emulators`).
+// A `demo-` project id can never reach a real Firebase project.
+export const USE_EMULATORS = __DEV__;
 
-// Initialize Auth safely for React Native
-let authInstance: any;
-try {
+const isFirstInit = getApps().length === 0;
+const app = isFirstInit ? initializeApp(CONFIG.firebase) : getApp();
+
+let authInstance: Auth;
+if (isFirstInit && Platform.OS !== 'web') {
+  authInstance = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+} else {
   authInstance = getAuth(app);
-} catch (e) {
-  authInstance = null;
 }
 
 export const auth = authInstance;
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+if (USE_EMULATORS && isFirstInit) {
+  // Phone on Wi-Fi reaches the PC via the same host Metro is served from.
+  const metroHost = Constants.expoConfig?.hostUri?.split(':')[0];
+  const host = metroHost ?? (Platform.OS === 'android' ? '10.0.2.2' : 'localhost');
+  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, host, 8080);
+  connectStorageEmulator(storage, host, 9199);
+}
 
 export { serverTimestamp, Timestamp };
 
@@ -30,12 +51,9 @@ export const COLLECTIONS = {
   SESSIONS: 'sessions',
   CHATS: 'chats',
   MESSAGES: 'messages',
-  WORKOUT_LOGS: 'workoutLogs',
-  DIET_LOGS: 'dietLogs',
   TRANSFORMATIONS: 'transformations',
   REVIEWS: 'reviews',
   SCHEDULED_CHECKINS: 'scheduledCheckIns',
-  NOTIFICATIONS: 'notifications',
   QA: 'qa',
 } as const;
 

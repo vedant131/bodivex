@@ -5,139 +5,105 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  setDoc,
+  onSnapshot,
   query,
   where,
   orderBy,
   limit,
   serverTimestamp,
-  GeoPoint,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
-import { TrainerProfile, TrainerFilter, Transformation, TrainerQA } from '../types/trainer';
-import { MOCK_TRAINERS, MOCK_TRANSFORMATIONS } from '../constants/mockData';
+import { uploadImage } from './storage';
+import { TrainerProfile, TrainerFilter, Transformation, TrainerQA, TrainerReview } from '../types/trainer';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const toDate = (v: any) => v?.toDate?.() ?? (v ? new Date(v) : undefined);
 
 const toTrainerProfile = (id: string, data: any): TrainerProfile => ({
   id,
   ...data,
-  createdAt: data.createdAt?.toDate?.() ?? new Date(),
-  updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+  createdAt: toDate(data.createdAt) ?? new Date(),
+  updatedAt: toDate(data.updatedAt) ?? new Date(),
 });
+
+const withoutUndefined = <T extends object>(obj: T) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfile[]> => {
-  try {
-    const col = collection(db, COLLECTIONS.TRAINERS);
-    let q = query(col, where('isKYCApproved', '==', true));
+  let q = query(collection(db, COLLECTIONS.TRAINERS), where('isKYCApproved', '==', true));
 
-    if (filter?.sessionPreference && filter.sessionPreference !== 'both') {
-      q = query(q, where('sessionPreference', 'in', [filter.sessionPreference, 'both']));
-    }
-    if (filter?.isAvailableNow) {
-      q = query(q, where('isAvailableNow', '==', true));
-    }
-    if (filter?.city) {
-      q = query(q, where('city', '==', filter.city));
-    }
-
-    const snap = await getDocs(q);
-    let trainers = snap.docs.map(d => toTrainerProfile(d.id, d.data()));
-
-    if (trainers.length === 0) {
-      trainers = [...MOCK_TRAINERS];
-    }
-
-    // Client-side filters
-    if (filter?.minRating) {
-      trainers = trainers.filter(t => t.rating >= filter.minRating!);
-    }
-    if (filter?.maxPrice) {
-      trainers = trainers.filter(t =>
-        (t.pricingOnline ?? 0) <= filter.maxPrice! ||
-        (t.pricingOffline ?? 0) <= filter.maxPrice!
-      );
-    }
-    if (filter?.specializations?.length) {
-      trainers = trainers.filter(t =>
-        filter.specializations!.some(s => t.specializations.includes(s))
-      );
-    }
-    if (filter?.gymName) {
-      trainers = trainers.filter(t =>
-        t.gymLocation?.name.toLowerCase().includes(filter.gymName!.toLowerCase())
-      );
-    }
-    if (filter?.language) {
-      trainers = trainers.filter(t => t.languages.includes(filter.language!));
-    }
-
-    return trainers.sort((a, b) => b.rating - a.rating);
-  } catch (e) {
-    let fallback = [...MOCK_TRAINERS];
-    if (filter?.specializations?.length) {
-      fallback = fallback.filter(t =>
-        filter.specializations!.some(s => t.specializations.includes(s))
-      );
-    }
-    return fallback;
+  if (filter?.sessionPreference && filter.sessionPreference !== 'both') {
+    q = query(q, where('sessionPreference', 'in', [filter.sessionPreference, 'both']));
   }
+  if (filter?.isAvailableNow) {
+    q = query(q, where('isAvailableNow', '==', true));
+  }
+  if (filter?.city) {
+    q = query(q, where('city', '==', filter.city));
+  }
+
+  const snap = await getDocs(q);
+  let trainers = snap.docs.map((d) => toTrainerProfile(d.id, d.data()));
+
+  // Note: client-side filtering is fine for a few hundred trainers per city;
+  // move to Algolia/Typesense when search gets slow.
+  if (filter?.minRating) {
+    trainers = trainers.filter((t) => t.rating >= filter.minRating!);
+  }
+  if (filter?.maxPrice) {
+    trainers = trainers.filter(
+      (t) => (t.pricingOnline ?? Infinity) <= filter.maxPrice! || (t.pricingOffline ?? Infinity) <= filter.maxPrice!
+    );
+  }
+  if (filter?.specializations?.length) {
+    trainers = trainers.filter((t) => filter.specializations!.some((s) => t.specializations.includes(s)));
+  }
+  if (filter?.gymName) {
+    const g = filter.gymName.toLowerCase();
+    trainers = trainers.filter((t) => t.gymLocation?.name.toLowerCase().includes(g));
+  }
+  if (filter?.language) {
+    trainers = trainers.filter((t) => t.languages?.includes(filter.language!));
+  }
+
+  return trainers.sort((a, b) => b.rating - a.rating);
 };
 
 export const getTrainerById = async (id: string): Promise<TrainerProfile | null> => {
-  try {
-    const ref = doc(db, COLLECTIONS.TRAINERS, id);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      return toTrainerProfile(snap.id, snap.data());
-    }
-  } catch (e) {}
-  const mock = MOCK_TRAINERS.find(t => t.id === id || t.userId === id);
-  return mock ?? MOCK_TRAINERS[0];
+  const snap = await getDoc(doc(db, COLLECTIONS.TRAINERS, id));
+  return snap.exists() ? toTrainerProfile(snap.id, snap.data()) : null;
 };
 
-export const getTopTrainersInCity = async (
-  city: string,
-  limitCount: number = 10
-): Promise<TrainerProfile[]> => {
-  try {
-    const col = collection(db, COLLECTIONS.TRAINERS);
-    const q = query(
-      col,
-      where('city', '==', city),
-      where('isKYCApproved', '==', true),
-      orderBy('rating', 'desc'),
-      limit(limitCount)
-    );
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return snap.docs.map(d => toTrainerProfile(d.id, d.data()));
-    }
-  } catch (e) {}
-  return MOCK_TRAINERS.slice(0, limitCount);
-};
-
-export const searchTrainersNearGym = async (gymName: string): Promise<TrainerProfile[]> => {
-  const col = collection(db, COLLECTIONS.TRAINERS);
-  const q = query(col, where('isKYCApproved', '==', true));
+export const getTopTrainersInCity = async (city: string, limitCount = 10): Promise<TrainerProfile[]> => {
+  const q = query(
+    collection(db, COLLECTIONS.TRAINERS),
+    where('isKYCApproved', '==', true),
+    where('city', '==', city),
+    orderBy('rating', 'desc'),
+    limit(limitCount)
+  );
   const snap = await getDocs(q);
-  return snap.docs
-    .map(d => toTrainerProfile(d.id, d.data()))
-    .filter(t =>
-      t.gymLocation?.name.toLowerCase().includes(gymName.toLowerCase())
-    );
+  return snap.docs.map((d) => toTrainerProfile(d.id, d.data()));
 };
+
+export const subscribeToOwnTrainerProfile = (
+  uid: string,
+  callback: (profile: TrainerProfile | null) => void
+) =>
+  onSnapshot(doc(db, COLLECTIONS.TRAINERS, uid), (snap) =>
+    callback(snap.exists() ? toTrainerProfile(snap.id, snap.data()) : null)
+  );
 
 // ─── Write ────────────────────────────────────────────────────────────────────
 
-export const createTrainerProfile = async (
-  data: Partial<TrainerProfile>
-): Promise<string> => {
-  // Firestore rejects undefined values (e.g. no profile photo yet)
-  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-  const ref = await addDoc(collection(db, COLLECTIONS.TRAINERS), {
-    ...clean,
+/** Trainer doc id = the trainer's auth uid. */
+export const createTrainerProfile = async (uid: string, data: Partial<TrainerProfile>): Promise<void> => {
+  await setDoc(doc(db, COLLECTIONS.TRAINERS, uid), {
+    ...withoutUndefined(data),
     rating: 0,
     totalReviews: 0,
     totalSessions: 0,
@@ -149,142 +115,66 @@ export const createTrainerProfile = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
 };
 
-export const updateTrainerProfile = async (
-  id?: string,
-  data?: Partial<TrainerProfile>
-): Promise<void> => {
-  if (!id || !data) return;
-  try {
-    const ref = doc(db, COLLECTIONS.TRAINERS, id);
-    await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
-  } catch (err) {
-    console.log('updateTrainerProfile offline/skipped:', err);
-  }
+export const updateTrainerProfile = async (id: string, data: Partial<TrainerProfile>): Promise<void> => {
+  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), { ...withoutUndefined(data), updatedAt: serverTimestamp() });
 };
 
-export const updateAvailability = async (
-  id?: string,
-  isAvailableNow: boolean = false
-): Promise<void> => {
-  if (!id) return;
-  try {
-    const ref = doc(db, COLLECTIONS.TRAINERS, id);
-    await updateDoc(ref, {
-      isAvailableNow,
-      availabilityStatus: isAvailableNow ? 'available_now' : 'offline',
-      updatedAt: serverTimestamp(),
-    });
-  } catch (err) {
-    console.log('updateAvailability offline/skipped:', err);
-  }
-};
-
-// ─── Pricing ──────────────────────────────────────────────────────────────────
-
-export const updateTrainerRates = async (
-  trainerId: string,
-  rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
-): Promise<void> => {
-  const clean = Object.fromEntries(Object.entries(rates).filter(([, v]) => v !== undefined));
-  await updateDoc(doc(db, COLLECTIONS.TRAINERS, trainerId), {
-    ...clean,
+export const updateAvailability = async (id: string, isAvailableNow: boolean): Promise<void> => {
+  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), {
+    isAvailableNow,
+    availabilityStatus: isAvailableNow ? 'available_now' : 'offline',
     updatedAt: serverTimestamp(),
   });
 };
 
+export const updateTrainerRates = async (
+  trainerId: string,
+  rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
+): Promise<void> => updateTrainerProfile(trainerId, rates);
+
 // ─── Transformations ──────────────────────────────────────────────────────────
 
 export const getTransformations = async (trainerId: string): Promise<Transformation[]> => {
-  try {
-    const col = collection(db, COLLECTIONS.TRANSFORMATIONS);
-    const q = query(col, where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate?.() ?? new Date(),
-      })) as Transformation[];
-    }
-  } catch (e) {}
-  return MOCK_TRANSFORMATIONS;
+  const q = query(
+    collection(db, COLLECTIONS.TRANSFORMATIONS),
+    where('trainerId', '==', trainerId),
+    orderBy('createdAt', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) ?? new Date() })) as Transformation[];
 };
 
 export const addTransformation = async (
   data: Omit<Transformation, 'id' | 'aiVerified' | 'aiScore' | 'aiFlags' | 'createdAt'>
 ): Promise<string> => {
-  try {
-    const col = collection(db, COLLECTIONS.TRANSFORMATIONS);
-    const ref = await addDoc(col, {
-      ...data,
-      aiVerified: true,
-      aiScore: 98,
-      aiFlags: [],
-      createdAt: serverTimestamp(),
-    });
-    return ref.id;
-  } catch (err) {
-    console.log('addTransformation dev mode:', err);
-    return `trans_${Date.now()}`;
-  }
+  const stamp = Date.now();
+  const [beforePhotoUrl, afterPhotoUrl] = await Promise.all([
+    uploadImage(data.beforePhotoUrl, `transformations/${data.trainerId}/${stamp}_before.jpg`),
+    uploadImage(data.afterPhotoUrl, `transformations/${data.trainerId}/${stamp}_after.jpg`),
+  ]);
+  const ref = await addDoc(collection(db, COLLECTIONS.TRANSFORMATIONS), {
+    ...withoutUndefined(data),
+    beforePhotoUrl,
+    afterPhotoUrl,
+    aiVerified: false, // no AI check yet; never claim one
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
 };
 
-// ─── Q&A (Public Community Inquiries) ─────────────────────────────────────────
+// ─── Q&A (public) ─────────────────────────────────────────────────────────────
 
 export const getTrainerQA = async (trainerId: string): Promise<TrainerQA[]> => {
-  try {
-    const col = collection(db, COLLECTIONS.QA);
-    const q = query(col, where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate?.() ?? new Date(),
-        answeredAt: d.data().answeredAt?.toDate?.() ?? undefined,
-      })) as TrainerQA[];
-    }
-  } catch (e) {}
-
-  // Initial community Q&A mock data
-  return [
-    {
-      id: 'qa_1',
-      trainerId,
-      clientId: 'c_1',
-      clientName: 'Aakash Verma',
-      askerRole: 'client',
-      question: 'Do you provide purely vegetarian high-protein diet plans for fat loss?',
-      answer: 'Yes! Over 60% of my clients follow lacto-vegetarian diets with paneer, whey, sprouts, tofu, and legumes tailored to their exact daily macros.',
-      answeredAt: new Date(Date.now() - 86400000 * 2),
-      createdAt: new Date(Date.now() - 86400000 * 3),
-    },
-    {
-      id: 'qa_2',
-      trainerId,
-      clientId: 'c_2',
-      clientName: 'Sneha Roy',
-      askerRole: 'client',
-      question: 'I have lower back pain from sitting long hours. Can we do posture rehab?',
-      answer: 'Absolutely. We will incorporate glute activation, posterior chain work, and mobility drills to decompress your lumbar spine.',
-      answeredAt: new Date(Date.now() - 86400000 * 4),
-      createdAt: new Date(Date.now() - 86400000 * 5),
-    },
-    {
-      id: 'qa_3',
-      trainerId,
-      clientId: 'trainer_4',
-      clientName: 'Vikram Malhotra',
-      askerRole: 'trainer',
-      question: 'Hey coach, what progression template do you recommend for advanced deadlift plateaus?',
-      answer: 'I implement deficit pulls for initial drive off the floor and block pulls with wave loading (75%-85%-92%) across 4-week mesocycles.',
-      answeredAt: new Date(Date.now() - 86400000 * 1),
-      createdAt: new Date(Date.now() - 86400000 * 2),
-    }
-  ];
+  const q = query(collection(db, COLLECTIONS.QA), where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: toDate(d.data().createdAt) ?? new Date(),
+    answeredAt: toDate(d.data().answeredAt),
+  })) as TrainerQA[];
 };
 
 export const askTrainerQuestion = async (
@@ -295,90 +185,34 @@ export const askTrainerQuestion = async (
   askerRole: 'client' | 'trainer' = 'client',
   askerPhoto?: string
 ): Promise<string> => {
-  try {
-    const col = collection(db, COLLECTIONS.QA);
-    const ref = await addDoc(col, {
-      trainerId,
-      clientId,
-      clientName,
-      question,
-      askerRole,
-      ...(askerPhoto && { askerPhoto }),
-      createdAt: serverTimestamp(),
-    });
-    return ref.id;
-  } catch {
-    return `qa_${Date.now()}`;
-  }
+  const ref = await addDoc(collection(db, COLLECTIONS.QA), {
+    trainerId,
+    clientId,
+    clientName,
+    question,
+    askerRole,
+    ...(askerPhoto && { askerPhoto }),
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
 };
 
-export const answerTrainerQuestion = async (
-  qaId: string,
-  answer: string
-): Promise<void> => {
-  try {
-    const ref = doc(db, COLLECTIONS.QA, qaId);
-    await updateDoc(ref, {
-      answer,
-      answeredAt: serverTimestamp(),
-    });
-  } catch (e) {
-    console.log('answerTrainerQuestion offline/dev:', e);
-  }
+export const answerTrainerQuestion = async (qaId: string, answer: string): Promise<void> => {
+  await updateDoc(doc(db, COLLECTIONS.QA, qaId), { answer, answeredAt: serverTimestamp() });
 };
 
-// ─── Trainer Reviews ──────────────────────────────────────────────────────────
+// ─── Reviews ──────────────────────────────────────────────────────────────────
 
-export const getTrainerReviews = async (trainerId: string): Promise<any[]> => {
-  try {
-    const col = collection(db, COLLECTIONS.REVIEWS);
-    const q = query(col, where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate?.() ?? new Date(),
-      }));
-    }
-  } catch (e) {}
-
-  return [
-    {
-      id: 'rev_1',
-      trainerId,
-      clientName: 'Rohan Mehta',
-      rating: 5,
-      comment: 'Coach completely corrected my deadlift and squat form on video call. Super intense session and gave me an exact meal schedule right after. Worth every rupee!',
-      sessionType: 'Online Live Video',
-      createdAt: new Date(Date.now() - 86400000 * 14),
-    },
-    {
-      id: 'rev_2',
-      trainerId,
-      clientName: 'Ananya Iyer',
-      rating: 5,
-      comment: 'Lost 4 kgs in my first month! Very motivating, never lets me slack off on reps, and tracks my protein intake daily.',
-      sessionType: 'Monthly Coaching',
-      createdAt: new Date(Date.now() - 86400000 * 25),
-    },
-    {
-      id: 'rev_3',
-      trainerId,
-      clientName: 'Kunal Singhania',
-      rating: 4.8,
-      comment: 'High knowledge of exercise science and injury prevention. Excellent gym sessions in Bandra.',
-      sessionType: 'In-Person Gym Training',
-      createdAt: new Date(Date.now() - 86400000 * 35),
-    }
-  ];
+export const getTrainerReviews = async (trainerId: string): Promise<TrainerReview[]> => {
+  const q = query(collection(db, COLLECTIONS.REVIEWS), where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) ?? new Date() })) as TrainerReview[];
 };
 
-// ─── Leaderboard & Rankings (Pan-India & City, Offline / Online / Both) ───────
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 export type RankingScope = 'city' | 'india';
 export type RankingMode = 'all' | 'offline' | 'online' | 'both';
-export type RankingAudience = 'trainers' | 'clients';
 
 export interface RankedTrainer {
   rank: number;
@@ -386,168 +220,93 @@ export interface RankedTrainer {
   score: number;
   totalSessions: number;
   rating: number;
-  transformationsCount: number;
   badge: 'Gold' | 'Silver' | 'Bronze' | 'Rising Star' | 'Top Coach';
 }
 
-export interface RankedClient {
-  rank: number;
-  id: string;
-  name: string;
-  photo?: string;
-  city: string;
-  streakDays: number;
-  totalWorkouts: number;
-  weightLossKg: number;
-  level: string;
-}
+// Only in-app sessions and reviews count, so taking clients off-platform lowers rank.
+export const calculateTrainerScore = (t: TrainerProfile): number =>
+  Math.round((t.totalSessions || 0) * 8 + (t.rating || 0) * 60 + (t.totalReviews || 0) * 6);
 
-export const MOCK_CLIENT_LEADERBOARD: RankedClient[] = [
-  {
-    rank: 1,
-    id: 'cl_1',
-    name: 'Kabir Singhania',
-    city: 'Mumbai',
-    streakDays: 48,
-    totalWorkouts: 64,
-    weightLossKg: 14.2,
-    level: 'Advanced Athlete',
-  },
-  {
-    rank: 2,
-    id: 'cl_2',
-    name: 'Rohan Mehra',
-    city: 'Bangalore',
-    streakDays: 42,
-    totalWorkouts: 55,
-    weightLossKg: 11.5,
-    level: 'Consistency Champ',
-  },
-  {
-    rank: 3,
-    id: 'cl_3',
-    name: 'Ananya Sharma',
-    city: 'Mumbai',
-    streakDays: 39,
-    totalWorkouts: 50,
-    weightLossKg: 9.8,
-    level: 'HIIT Warrior',
-  },
-  {
-    rank: 4,
-    id: 'cl_4',
-    name: 'Vikram Joshi',
-    city: 'Delhi NCR',
-    streakDays: 31,
-    totalWorkouts: 42,
-    weightLossKg: 8.4,
-    level: 'Dedicated Member',
-  },
-  {
-    rank: 5,
-    id: 'cl_5',
-    name: 'Tanvi Saxena',
-    city: 'Pune',
-    streakDays: 28,
-    totalWorkouts: 38,
-    weightLossKg: 7.0,
-    level: 'Rising Member',
-  },
-];
-
-export const calculateTrainerScore = (t: TrainerProfile): number => {
-  return Math.round((t.totalSessions || 0) * 8 + (t.rating || 4.5) * 60 + (t.totalReviews || 0) * 6);
-};
-
-export const getRankedTrainers = (
+export const rankTrainers = (
+  trainers: TrainerProfile[],
   scope: RankingScope,
   city: string,
   mode: RankingMode
 ): RankedTrainer[] => {
-  let list = [...MOCK_TRAINERS];
-
+  let list = trainers;
   if (scope === 'city' && city) {
-    const matched = list.filter((t) => (t.city || '').toLowerCase() === city.toLowerCase());
-    if (matched.length >= 2) {
-      list = matched;
-    }
+    list = list.filter((t) => t.city === city);
+  }
+  if (mode === 'offline' || mode === 'online') {
+    list = list.filter((t) => t.sessionPreference === mode || t.sessionPreference === 'both');
+  } else if (mode === 'both') {
+    list = list.filter((t) => t.sessionPreference === 'both');
   }
 
-  if (mode !== 'all') {
-    if (mode === 'offline') {
-      list = list.filter((t) => t.sessionPreference === 'offline' || t.sessionPreference === 'both');
-    } else if (mode === 'online') {
-      list = list.filter((t) => t.sessionPreference === 'online' || t.sessionPreference === 'both');
-    } else if (mode === 'both') {
-      list = list.filter((t) => t.sessionPreference === 'both');
-    }
-  }
-
-  list.sort((a, b) => calculateTrainerScore(b) - calculateTrainerScore(a));
-
-  return list.map((trainer, index) => {
-    const rank = index + 1;
-    let badge: RankedTrainer['badge'] = 'Rising Star';
-    if (rank === 1) badge = 'Gold';
-    else if (rank === 2) badge = 'Silver';
-    else if (rank === 3) badge = 'Bronze';
-    else if (rank <= 10) badge = 'Top Coach';
-
-    return {
-      rank,
-      trainer,
-      score: calculateTrainerScore(trainer),
-      totalSessions: trainer.totalSessions || 50,
-      rating: trainer.rating || 4.9,
-      transformationsCount: 3,
-      badge,
-    };
-  });
+  return [...list]
+    .sort((a, b) => calculateTrainerScore(b) - calculateTrainerScore(a))
+    .map((trainer, i) => {
+      const rank = i + 1;
+      const badge: RankedTrainer['badge'] =
+        rank === 1 ? 'Gold' : rank === 2 ? 'Silver' : rank === 3 ? 'Bronze' : rank <= 10 ? 'Top Coach' : 'Rising Star';
+      return {
+        rank,
+        trainer,
+        score: calculateTrainerScore(trainer),
+        totalSessions: trainer.totalSessions || 0,
+        rating: trainer.rating || 0,
+        badge,
+      };
+    });
 };
 
-export const getTrainerProfileReachScore = (profile: Partial<TrainerProfile> | null): {
+// ─── Profile completeness (shown on the trainer dashboard) ────────────────────
+
+export const getTrainerProfileReachScore = (
+  profile: Partial<TrainerProfile> | null,
+  counts: { transformations?: number; answeredQA?: number } = {}
+): {
   score: number;
   checklist: { id: string; label: string; completed: boolean; points: number; tip: string }[];
 } => {
   const checklist = [
     {
       id: 'bio',
-      label: 'Detailed Coaching Bio (>50 chars)',
-      completed: !!(profile?.bio && profile.bio.length >= 40),
+      label: 'Write a coaching bio',
+      completed: (profile?.bio?.length ?? 0) >= 40,
       points: 20,
       tip: 'Tell clients what makes your training method unique.',
     },
     {
       id: 'photos',
-      label: 'Upload Before & After Results',
-      completed: true,
+      label: 'Upload a before & after result',
+      completed: (counts.transformations ?? 0) > 0,
       points: 25,
-      tip: 'Transformations with AI verification get 4.2x more client clicks.',
+      tip: 'Real results are the first thing clients look for.',
     },
     {
       id: 'certs',
-      label: 'Add & Verify Fitness Certifications',
-      completed: !!(profile?.certifications && profile.certifications.length > 0),
+      label: 'Add your certifications',
+      completed: (profile?.certifications?.length ?? 0) > 0,
       points: 20,
-      tip: 'Verified trainers appear on the Top Coaches shelf.',
+      tip: 'Certified coaches get more bookings.',
     },
     {
       id: 'rates',
-      label: 'Configure Online & Offline Rates',
+      label: 'Set your online / in-person rates',
       completed: !!(profile?.pricingOnline || profile?.pricingOffline),
       points: 15,
-      tip: 'Locked rates give clients price certainty.',
+      tip: 'Clear prices make it easy to book.',
     },
     {
       id: 'qa',
-      label: 'Answer Public Community Questions',
-      completed: true,
+      label: 'Answer a public question',
+      completed: (counts.answeredQA ?? 0) > 0,
       points: 20,
-      tip: 'Every answered question increases your algorithm reach by 15%.',
+      tip: 'Answers show clients how you coach.',
     },
   ];
 
   const score = checklist.reduce((acc, item) => (item.completed ? acc + item.points : acc), 0);
-
   return { score, checklist };
 };

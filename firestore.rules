@@ -1,0 +1,142 @@
+rules_version = '2';
+
+// Deny by default: every collection below must grant access explicitly.
+// Doc ids for users/clients/trainers are the owner's auth uid.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isUser(uid) { return signedIn() && request.auth.uid == uid; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function onlyChanges(keys) { return changed().hasOnly(keys); }
+    function incoming() { return request.resource.data; }
+
+    // ── Users: own doc only; role and verification flags are not self-editable
+    match /users/{uid} {
+      allow read: if isUser(uid);
+      allow create: if isUser(uid)
+        && incoming().role in ['client', 'trainer']
+        && incoming().kycStatus == 'not_started'
+        && incoming().aadhaarVerified == false;
+      allow update: if isUser(uid)
+        && !changed().hasAny(['role', 'kycStatus', 'aadhaarVerified', 'phone']);
+    }
+
+    // ── Client profiles: private to the client
+    match /clients/{uid} {
+      allow read: if isUser(uid);
+      allow create, update: if isUser(uid) && incoming().get('aadhaarVerified', false) == false;
+    }
+
+    // ── Trainer profiles: public once approved; approval and stats are admin/server-only
+    match /trainers/{uid} {
+      allow read: if signedIn() && (resource.data.isKYCApproved == true || request.auth.uid == uid);
+      allow create: if isUser(uid)
+        && incoming().isKYCApproved == false
+        && incoming().kycStatus == 'pending'
+        && incoming().rating == 0
+        && incoming().totalReviews == 0
+        && incoming().totalSessions == 0;
+      allow update: if isUser(uid)
+        && !changed().hasAny(['isKYCApproved', 'kycStatus', 'rating', 'totalReviews', 'totalSessions', 'userId']);
+    }
+
+    // ── Sessions (booking requests)
+    match /sessions/{id} {
+      allow read: if signedIn()
+        && (resource.data.clientId == request.auth.uid || resource.data.trainerId == request.auth.uid);
+
+      allow create: if signedIn()
+        && incoming().clientId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().trainerId != request.auth.uid
+        && get(/databases/$(database)/documents/trainers/$(incoming().trainerId)).data.isKYCApproved == true;
+
+      // Trainer answers a pending request
+      allow update: if signedIn()
+        && resource.data.trainerId == request.auth.uid
+        && resource.data.status == 'pending'
+        && incoming().status in ['confirmed', 'cancelled']
+        && onlyChanges(['status', 'cancelReason', 'updatedAt']);
+
+      // Client completes a confirmed session (with rating) or cancels a pending one
+      allow update: if signedIn()
+        && resource.data.clientId == request.auth.uid
+        && ((resource.data.status == 'confirmed' && incoming().status == 'completed')
+            || (resource.data.status == 'pending' && incoming().status == 'cancelled'))
+        && onlyChanges(['status', 'clientRating', 'clientReview', 'endedAt', 'cancelReason', 'updatedAt']);
+    }
+
+    // ── Reviews: one per completed session (doc id = session id), by that session's client
+    match /reviews/{sessionId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().clientId == request.auth.uid
+        && incoming().sessionId == sessionId
+        && incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5
+        && get(/databases/$(database)/documents/sessions/$(sessionId)).data.clientId == request.auth.uid
+        && get(/databases/$(database)/documents/sessions/$(sessionId)).data.status == 'completed'
+        && get(/databases/$(database)/documents/sessions/$(sessionId)).data.trainerId == incoming().trainerId;
+    }
+
+    // ── Chats: participants only; only the trainer can unlock
+    match /chats/{chatId} {
+      function isParticipant() { return signedIn() && request.auth.uid in resource.data.participants; }
+
+      allow read: if isParticipant();
+      allow create: if signedIn()
+        && request.auth.uid in incoming().participants
+        && incoming().participants.size() == 2
+        && incoming().trainerId in incoming().participants
+        && incoming().isUnlocked == false;
+      allow update: if isParticipant()
+        && !changed().hasAny(['participants', 'trainerId'])
+        && (!changed().hasAny(['isUnlocked']) || request.auth.uid == resource.data.trainerId);
+
+      match /messages/{messageId} {
+        function chat() { return get(/databases/$(database)/documents/chats/$(chatId)).data; }
+        allow read: if signedIn() && request.auth.uid in chat().participants;
+        allow create: if signedIn()
+          && request.auth.uid in chat().participants
+          && chat().isUnlocked == true
+          && incoming().senderId == request.auth.uid;
+        // Recipient marks as read
+        allow update: if signedIn()
+          && request.auth.uid in chat().participants
+          && resource.data.senderId != request.auth.uid
+          && onlyChanges(['read']);
+      }
+    }
+
+    // ── Public Q&A on trainer profiles
+    match /qa/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().clientId == request.auth.uid
+        && !('answer' in incoming())
+        && incoming().question is string && incoming().question.size() <= 500;
+      allow update: if signedIn()
+        && resource.data.trainerId == request.auth.uid
+        && onlyChanges(['answer', 'answeredAt'])
+        && incoming().answer is string && incoming().answer.size() <= 1000;
+    }
+
+    // ── Transformations: trainer-owned, publicly readable
+    match /transformations/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().trainerId == request.auth.uid
+        && incoming().aiVerified == false
+        && incoming().clientConsentGiven == true;
+      allow delete: if signedIn() && resource.data.trainerId == request.auth.uid;
+    }
+
+    // ── Scheduled check-ins: trainer creates for their client
+    match /scheduledCheckIns/{id} {
+      allow read: if signedIn()
+        && (resource.data.trainerId == request.auth.uid || resource.data.clientId == request.auth.uid);
+      allow create: if signedIn() && incoming().trainerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.trainerId == request.auth.uid;
+    }
+  }
+}
