@@ -50,7 +50,7 @@ export default function TrainerStep3() {
 
         <Text style={styles.title}>Set Your Rates</Text>
         <Text style={styles.subtitle}>
-          Clients pay upfront through Bodivex Escrow. Funds are protected and released after each satisfied session.
+          Clients pay you directly. Listing is free; you pay a small one-time fee only when you accept a new client (first 3 free).
         </Text>
 
         {/* Pricing inputs */}

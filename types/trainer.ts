@@ -48,23 +48,11 @@ export interface TrainerProfile {
   totalSessions: number;
   isKYCApproved: boolean;
   kycStatus: 'not_started' | 'pending' | 'under_review' | 'approved' | 'rejected';
-  bankAccountVerified: boolean;
-  razorpayLinkedAccountId?: string;
   languages: string[];
   city: string;
   state: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface TrainerRateHistory {
-  id: string;
-  trainerId: string;
-  pricingOnline?: number;
-  pricingOffline?: number;
-  pricingMonthly?: number;
-  effectiveFrom: Date;
-  reason?: string;
 }
 
 export interface Transformation {

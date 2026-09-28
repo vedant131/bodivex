@@ -11,7 +11,7 @@ export const COLORS = {
   accent: '#111827',
   accentMuted: '#1F2937',
 
-  // Status & Escrow
+  // Status
   success: '#10B981',
   successMuted: 'rgba(16, 185, 129, 0.12)',
   warning: '#F59E0B',
@@ -33,10 +33,6 @@ export const COLORS = {
   white: '#FFFFFF',
   black: '#000000',
   overlay: 'rgba(11, 15, 25, 0.65)',
-
-  // Escrow Specific
-  escrowHeld: '#F59E0B',
-  escrowReleased: '#10B981',
 
   // Gradients
   gradientStart: '#FF462B',

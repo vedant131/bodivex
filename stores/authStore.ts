@@ -76,4 +76,3 @@ export const useAuthStore = create<AuthState>()(
 export const useRole = () => useAuthStore((s) => s.user?.role as UserRole | undefined);
 export const useIsClient = () => useAuthStore((s) => s.user?.role === 'client');
 export const useIsTrainer = () => useAuthStore((s) => s.user?.role === 'trainer');
-export const useWalletBalance = () => useAuthStore((s) => s.user?.walletBalance ?? 0);

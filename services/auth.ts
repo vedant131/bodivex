@@ -48,7 +48,6 @@ export const createUserProfile = async (
       phone: data.phone,
       name: data.name ?? '',
       role: data.role,
-      walletBalance: 0,
       kycStatus: 'not_started' as KYCStatus,
       aadhaarVerified: false,
       createdAt: new Date(),

@@ -52,7 +52,7 @@ export const getOrCreateChat = async (
     participants: [userId1, userId2],
     participantNames: {},
     unreadCount: { [userId1]: 0, [userId2]: 0 },
-    sessionId,
+    ...(sessionId && { sessionId }),
     isUnlocked: false,
     createdAt: new Date(),
   };

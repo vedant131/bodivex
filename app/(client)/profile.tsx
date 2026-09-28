@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,23 +6,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Modal,
-  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useAuthStore } from '../../stores/authStore';
-import { updateUserProfile } from '../../services/auth';
 import { COLORS } from '../../constants/colors';
 import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel } from '../../types/user';
 
 export default function ClientProfileScreen() {
-  const { user, clientProfile, logout, setUser } = useAuthStore();
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [addAmount, setAddAmount] = useState('');
+  const { user, clientProfile, logout } = useAuthStore();
 
   const bmi =
     clientProfile?.weight && clientProfile?.height
@@ -36,23 +31,6 @@ export default function ClientProfileScreen() {
           )
         ).toFixed(1)
       : null;
-
-  const handleAddMoney = async () => {
-    const amt = Number(addAmount);
-    if (!amt || amt < 100) {
-      Alert.alert('Minimum recharge is ₹100');
-      return;
-    }
-    if (!user) return;
-
-    // Simulate instant wallet recharge (in prod via Razorpay checkout)
-    const newBalance = (user.walletBalance ?? 0) + amt;
-    await updateUserProfile(user.id, { walletBalance: newBalance });
-    setUser({ ...user, walletBalance: newBalance });
-    setShowWalletModal(false);
-    setAddAmount('');
-    Alert.alert('Wallet Recharged! 💳', `Added ₹${amt} to your Bodivex Wallet.`);
-  };
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of Bodivex?', [
@@ -88,44 +66,15 @@ export default function ClientProfileScreen() {
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleBadgeText}>Client Member</Text>
                 </View>
-                {clientProfile?.aadhaarVerified ? (
+                {clientProfile?.aadhaarVerified && (
                   <View style={styles.kycBadge}>
                     <Ionicons name="checkmark-circle" size={12} color={COLORS.success} />
                     <Text style={styles.kycBadgeText}>KYC Verified</Text>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.verifyPrompt}
-                    onPress={() => Alert.alert('Aadhaar KYC', 'DigiLocker verification coming in next update.')}
-                  >
-                    <Text style={styles.verifyPromptText}>+ Verify Aadhaar</Text>
-                  </TouchableOpacity>
                 )}
               </View>
             </View>
           </View>
-        </View>
-
-        {/* Bodivex Escrow Wallet */}
-        <View style={styles.walletCard}>
-          <View style={styles.walletHeader}>
-            <View>
-              <Text style={styles.walletLabel}>Bodivex Wallet (Escrow Protected)</Text>
-              <Text style={styles.walletBalance}>
-                ₹{(user?.walletBalance ?? 0).toLocaleString('en-IN')}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addMoneyBtn}
-              onPress={() => setShowWalletModal(true)}
-            >
-              <Ionicons name="add" size={18} color={COLORS.white} />
-              <Text style={styles.addMoneyText}>Add Money</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.walletHint}>
-            Funds are deducted only during bookings and held securely until you confirm session satisfaction.
-          </Text>
         </View>
 
         {/* Body Stats & Fitness Profile */}
@@ -225,50 +174,6 @@ export default function ClientProfileScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Money Modal */}
-      <Modal visible={showWalletModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Recharge Bodivex Wallet</Text>
-            <Text style={styles.modalSub}>
-              Top up via UPI, Netbanking, or Cards. Unused balance can be refunded anytime.
-            </Text>
-
-            <TextInput
-              style={styles.amountInput}
-              placeholder="₹ Amount (e.g. 1000)"
-              placeholderTextColor={COLORS.textMuted}
-              keyboardType="number-pad"
-              value={addAmount}
-              onChangeText={setAddAmount}
-            />
-
-            <View style={styles.quickAddRow}>
-              {[500, 1000, 2000, 5000].map((amt) => (
-                <TouchableOpacity
-                  key={amt}
-                  style={styles.quickAddBtn}
-                  onPress={() => setAddAmount(amt.toString())}
-                >
-                  <Text style={styles.quickAddText}>+₹{amt}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setShowWalletModal(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.rechargeBtn} onPress={handleAddMoney}>
-                <Text style={styles.rechargeText}>Pay & Add Funds</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -313,34 +218,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   kycBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.success },
-  verifyPrompt: {
-    backgroundColor: `${COLORS.primary}12`,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  verifyPromptText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
-  walletCard: {
-    margin: 16,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 18,
-    padding: 18,
-    gap: 10,
-  },
-  walletHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  walletLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
-  walletBalance: { fontSize: 28, fontWeight: '900', color: COLORS.white, marginTop: 4 },
-  addMoneyBtn: {
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  addMoneyText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
-  walletHint: { fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 16 },
   section: {
     backgroundColor: COLORS.white,
     marginTop: 12,
@@ -404,54 +281,4 @@ const styles = StyleSheet.create({
   menuItemText: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
   logoutItem: { borderBottomWidth: 0 },
   logoutText: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
-  modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
-  modalCard: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    gap: 14,
-  },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: COLORS.textPrimary },
-  modalSub: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  amountInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-  },
-  quickAddRow: { flexDirection: 'row', gap: 8 },
-  quickAddBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  quickAddText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  cancelBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
-  rechargeBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rechargeText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
 });

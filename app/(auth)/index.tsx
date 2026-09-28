@@ -46,7 +46,7 @@ export default function WelcomeScreen() {
         {/* Features */}
         <View style={styles.featuresRow}>
           {[
-            { icon: 'shield-checkmark', text: '100% Escrow' },
+            { icon: 'shield-checkmark', text: 'Verified Coaches' },
             { icon: 'videocam', text: 'Live Coaching' },
             { icon: 'trophy', text: 'Arena Ranks' },
           ].map((f) => (
@@ -73,7 +73,7 @@ export default function WelcomeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.clientBtnText}>I'm a Client / Gym-Goer</Text>
-              <Text style={styles.clientBtnSub}>Book verified coaches with escrow safety</Text>
+              <Text style={styles.clientBtnSub}>Find verified coaches near you</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>

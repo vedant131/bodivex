@@ -24,8 +24,8 @@ export default function TrainerPendingScreen() {
             <Text style={styles.infoText}>Aadhaar & PAN KYC linked</Text>
           </View>
           <View style={styles.infoRow}>
-            <Ionicons name="wallet-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>Escrow Payouts enabled</Text>
+            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.infoText}>Your first 3 clients are free</Text>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="flash-outline" size={20} color={COLORS.primary} />

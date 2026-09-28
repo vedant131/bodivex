@@ -5,9 +5,9 @@ export const CONFIG = {
   supportEmail: 'support@bodivex.in',
 
   // Business rules
-  platformFeePercent: 5,
-  autoReleaseHours: 48,
-  minWithdrawalAmount: 500,
+  // Monetization: trainers pay once per new client they accept (not per session)
+  newClientFee: 149,
+  freeClientsPerTrainer: 3,
   trainerApprovalHours: 48,
   freeIntroMinutes: 15,
   maxVideoIntroSeconds: 60,
@@ -22,12 +22,6 @@ export const CONFIG = {
     messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
     appId: 'YOUR_APP_ID',
     measurementId: 'YOUR_MEASUREMENT_ID',
-  },
-
-  // Razorpay — replace with your actual key from Razorpay Dashboard
-  razorpay: {
-    keyId: 'YOUR_RAZORPAY_KEY_ID',
-    keySecret: 'YOUR_RAZORPAY_KEY_SECRET', // keep server-side only
   },
 
   // Agora — replace with your Agora App ID
@@ -47,8 +41,9 @@ export const CONFIG = {
     apiKey: 'YOUR_GOOGLE_MAPS_API_KEY',
   },
 
-  // Gemini AI
+  // Gemini AI — dev only. Before launch this call moves to a Cloud Function,
+  // because anything in the app bundle can be extracted.
   gemini: {
-    apiKey: 'YOUR_GEMINI_API_KEY',
+    apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '',
   },
 } as const;

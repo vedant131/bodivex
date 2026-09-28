@@ -90,11 +90,11 @@ export default function TrainerChatsScreen() {
         </View>
       </View>
 
-      {/* Escrow Protected Chat Banner */}
+      {/* Chat unlock notice */}
       <View style={styles.escrowNoticeCard}>
         <Ionicons name="shield-checkmark" size={16} color={COLORS.success} />
         <Text style={styles.escrowNoticeCardText}>
-          Direct 1-on-1 chats are unlocked only after a client completes payment into escrow. Pre-booking inquiries remain in your public Q&A.
+          Chats unlock when you accept a booking. Questions before booking go to your public Q&A.
         </Text>
       </View>
 

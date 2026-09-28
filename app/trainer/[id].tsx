@@ -259,7 +259,7 @@ export default function TrainerProfileScreen() {
               <View style={styles.contentCard}>
                 <Text style={styles.cardHeaderTitle}>Training Options & Rates</Text>
                 <Text style={styles.cardHeaderSub}>
-                  Funds held securely in Bodivex Escrow until your session is completed.
+                  Pay the trainer directly once they confirm your booking.
                 </Text>
 
                 {trainer.pricingOnline && (
@@ -537,7 +537,7 @@ export default function TrainerProfileScreen() {
           >
             <View>
               <Text style={styles.bookPriceText}>From ₹{minRate} / session</Text>
-              <Text style={styles.bookPriceSub}>🔒 100% Escrow Protected Booking</Text>
+              <Text style={styles.bookPriceSub}>Free to request · pay trainer directly</Text>
             </View>
             <View style={styles.bookBtnRight}>
               <Text style={styles.mainBookBtnText}>Book Session</Text>

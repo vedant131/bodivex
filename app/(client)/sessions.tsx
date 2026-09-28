@@ -18,8 +18,7 @@ import { format } from 'date-fns';
 import { useAuthStore } from '../../stores/authStore';
 import {
   subscribeToClientSessions,
-  clientConfirmSatisfied,
-  clientRaiseDispute,
+  clientCompleteSession,
 } from '../../services/bookings';
 import { COLORS } from '../../constants/colors';
 import { Session } from '../../types/session';
@@ -38,10 +37,6 @@ export default function ClientSessionsScreen() {
   const [review, setReview] = useState('');
   const [showRatingModal, setShowRatingModal] = useState(false);
 
-  // Dispute modal state
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  const [disputeReason, setDisputeReason] = useState('');
-
   useEffect(() => {
     if (!user?.id) return;
     const unsub = subscribeToClientSessions(user.id, (list) => {
@@ -53,7 +48,7 @@ export default function ClientSessionsScreen() {
 
   const filteredSessions = sessions.filter((s) => {
     if (activeTab === 'upcoming') {
-      return s.status === 'pending' || s.status === 'confirmed' || s.status === 'active';
+      return s.status === 'pending' || s.status === 'confirmed';
     }
     if (activeTab === 'completed') {
       return s.status === 'completed';
@@ -71,30 +66,9 @@ export default function ClientSessionsScreen() {
   const submitSatisfaction = async () => {
     if (!selectedSession) return;
     try {
-      await clientConfirmSatisfied(selectedSession.id, rating, review.trim() || undefined);
+      await clientCompleteSession(selectedSession.id, rating, review.trim() || undefined);
       setShowRatingModal(false);
-      Alert.alert(
-        'Session Completed! 🎉',
-        'Your payment has been released to the trainer. Thank you for your feedback!'
-      );
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    }
-  };
-
-  const submitDispute = async () => {
-    if (!selectedSession || !disputeReason.trim()) {
-      Alert.alert('Please provide a reason for the dispute');
-      return;
-    }
-    try {
-      await clientRaiseDispute(selectedSession.id, disputeReason.trim());
-      setShowDisputeModal(false);
-      setDisputeReason('');
-      Alert.alert(
-        'Dispute Submitted',
-        'Our support team will review your session and resolve the dispute within 24 hours. The escrow payment remains safely on hold.'
-      );
+      Alert.alert('Thanks for the feedback!');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -145,7 +119,6 @@ export default function ClientSessionsScreen() {
             const isConfirmed = session.status === 'confirmed';
             const isPending = session.status === 'pending';
             const isCompleted = session.status === 'completed';
-            const isDisputed = session.status === 'disputed';
 
             return (
               <View key={session.id} style={styles.card}>
@@ -170,7 +143,6 @@ export default function ClientSessionsScreen() {
                       isConfirmed && styles.statusConfirmed,
                       isPending && styles.statusPending,
                       isCompleted && styles.statusCompleted,
-                      isDisputed && styles.statusDisputed,
                     ]}
                   >
                     <Text
@@ -179,7 +151,6 @@ export default function ClientSessionsScreen() {
                         isConfirmed && { color: COLORS.primary },
                         isPending && { color: COLORS.warning },
                         isCompleted && { color: COLORS.success },
-                        isDisputed && { color: COLORS.danger },
                       ]}
                     >
                       {isPending
@@ -210,10 +181,8 @@ export default function ClientSessionsScreen() {
                     <Text style={styles.metaText}>{session.durationMins} mins</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <Ionicons name="lock-closed-outline" size={14} color={COLORS.warning} />
-                    <Text style={styles.metaText}>
-                      {session.escrowStatus === 'released' ? 'Released' : 'In Escrow'}
-                    </Text>
+                    <Ionicons name="cash-outline" size={14} color={COLORS.textSecondary} />
+                    <Text style={styles.metaText}>₹{session.price} · pay trainer</Text>
                   </View>
                 </View>
 
@@ -255,7 +224,7 @@ export default function ClientSessionsScreen() {
                       style={styles.releaseBtn}
                       onPress={() => handleConfirmSatisfied(session)}
                     >
-                      <Text style={styles.releaseBtnText}>Mark Satisfied</Text>
+                      <Text style={styles.releaseBtnText}>Mark Done</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -269,9 +238,9 @@ export default function ClientSessionsScreen() {
       <Modal visible={showRatingModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Session Completion & Release</Text>
+            <Text style={styles.modalTitle}>How was your session?</Text>
             <Text style={styles.modalSub}>
-              Confirm you are satisfied with {selectedSession?.trainerName}'s session to release the escrow payment.
+              Rate {selectedSession?.trainerName}. Your review helps other clients.
             </Text>
 
             {/* Stars */}
@@ -298,56 +267,18 @@ export default function ClientSessionsScreen() {
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.disputeTriggerBtn}
-                onPress={() => {
-                  setShowRatingModal(false);
-                  setShowDisputeModal(true);
-                }}
-              >
-                <Text style={styles.disputeTriggerText}>Having an issue? Dispute</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRatingModal(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.confirmReleaseBtn} onPress={submitSatisfaction}>
-                <Text style={styles.confirmReleaseText}>Approve & Release Funds</Text>
+                <Text style={styles.confirmReleaseText}>Submit</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Dispute Modal */}
-      <Modal visible={showDisputeModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Raise a Dispute</Text>
-            <Text style={styles.modalSub}>
-              Tell us what went wrong. Funds will remain locked in escrow while our admin investigates.
-            </Text>
-
-            <TextInput
-              style={[styles.reviewInput, { height: 100 }]}
-              placeholder="Explain the issue (trainer no-show, improper session, etc.)..."
-              placeholderTextColor={COLORS.textMuted}
-              value={disputeReason}
-              onChangeText={setDisputeReason}
-              multiline
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setShowDisputeModal(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.disputeSubmitBtn} onPress={submitDispute}>
-                <Text style={styles.disputeSubmitText}>Submit Dispute</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -420,7 +351,6 @@ const styles = StyleSheet.create({
   statusConfirmed: { backgroundColor: `${COLORS.primary}15` },
   statusPending: { backgroundColor: `${COLORS.warning}18` },
   statusCompleted: { backgroundColor: `${COLORS.success}15` },
-  statusDisputed: { backgroundColor: `${COLORS.danger}15` },
   statusText: { fontSize: 11, fontWeight: '700' },
   metaRow: {
     flexDirection: 'row',
@@ -481,8 +411,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   modalActions: { gap: 10, marginTop: 8 },
-  disputeTriggerBtn: { alignItems: 'center', paddingVertical: 6 },
-  disputeTriggerText: { color: COLORS.danger, fontSize: 13, fontWeight: '600' },
   confirmReleaseBtn: {
     backgroundColor: COLORS.success,
     borderRadius: 14,
@@ -500,12 +428,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 15 },
-  disputeSubmitBtn: {
-    backgroundColor: COLORS.danger,
-    borderRadius: 14,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  disputeSubmitText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
 });

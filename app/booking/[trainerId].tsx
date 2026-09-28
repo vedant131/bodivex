@@ -1,26 +1,27 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator
+  StyleSheet, Alert, ActivityIndicator, Platform
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
+import { createBooking } from '../../services/bookings';
 import { COLORS } from '../../constants/colors';
 import { SessionType } from '../../types/session';
-import { CONFIG } from '../../constants/config';
 
 const DURATIONS = [30, 45, 60, 90, 120];
 
 export default function BookingScreen() {
-  const { trainerId } = useLocalSearchParams<{ trainerId: string }>();
   const { selectedTrainer: trainer } = useTrainerStore();
   const { user } = useAuthStore();
 
-  const [sessionType, setSessionType] = useState<SessionType>('online');
+  const [sessionType, setSessionType] = useState<SessionType>(
+    trainer?.pricingOnline ? 'online' : 'offline'
+  );
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [durationMins, setDurationMins] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,43 +37,59 @@ export default function BookingScreen() {
   const rate = sessionType === 'online'
     ? (trainer.pricingOnline ?? 0)
     : (trainer.pricingOffline ?? 0);
-  const ratePerMin = rate / 60;
-  const sessionCost = Math.round(ratePerMin * durationMins);
-  const platformFee = Math.round(sessionCost * CONFIG.platformFeePercent / 100);
-  const total = sessionCost + platformFee;
+  const price = Math.round((rate / 60) * durationMins);
+
+  // Android has no combined datetime picker: pick date, then time.
+  const openAndroidPicker = () => {
+    DateTimePickerAndroid.open({
+      value: selectedDate,
+      mode: 'date',
+      minimumDate: new Date(),
+      onChange: (e, date) => {
+        if (e.type !== 'set' || !date) return;
+        DateTimePickerAndroid.open({
+          value: date,
+          mode: 'time',
+          onChange: (e2, time) => {
+            if (e2.type === 'set' && time) setSelectedDate(time);
+          },
+        });
+      },
+    });
+  };
 
   const handleBook = async () => {
-    if (total > (user?.walletBalance ?? 0)) {
-      Alert.alert(
-        'Insufficient Wallet Balance',
-        `You need ₹${total - (user?.walletBalance ?? 0)} more. Add money to your wallet first.`,
-        [
-          { text: 'Add Money', onPress: () => {} },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
+    if (!user) return;
+    if (selectedDate.getTime() < Date.now()) {
+      Alert.alert('Pick a future time');
       return;
     }
     setIsLoading(true);
     try {
-      // In production: create Razorpay order + Firestore session
+      await createBooking(
+        { trainerId: trainer.id, type: sessionType, scheduledAt: selectedDate, durationMins, price },
+        user.id,
+        user.name,
+        trainer
+      );
       Alert.alert(
-        'Booking Confirmed! 🎉',
-        `Your session with ${trainer.name} is booked for ${selectedDate.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}.
-        
-₹${total} has been held in escrow. The trainer will confirm within 30 minutes.`,
+        'Request sent',
+        `${trainer.name} will confirm your session. Chat unlocks once they accept.`,
         [{ text: 'OK', onPress: () => router.replace('/(client)/sessions') }]
       );
     } catch (e: any) {
-      Alert.alert('Booking Failed', e.message);
+      Alert.alert('Booking failed', e.message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const dateLabel = selectedDate.toLocaleString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
@@ -82,7 +99,6 @@ export default function BookingScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Trainer Info */}
         <View style={styles.trainerRow}>
           <View style={styles.trainerAvatar}>
             <Text style={styles.trainerAvatarText}>{trainer.name[0]}</Text>
@@ -96,40 +112,34 @@ export default function BookingScreen() {
           </View>
         </View>
 
-        {/* Session Type */}
         <Text style={styles.sectionLabel}>Session Type</Text>
         <View style={styles.typeRow}>
           {(['online', 'offline'] as SessionType[]).map((type) => {
-            const available = type === 'online' ? !!trainer.pricingOnline : !!trainer.pricingOffline;
-            const price = type === 'online' ? trainer.pricingOnline : trainer.pricingOffline;
+            const typeRate = type === 'online' ? trainer.pricingOnline : trainer.pricingOffline;
+            const active = sessionType === type;
             return (
               <TouchableOpacity
                 key={type}
-                style={[styles.typeBtn, sessionType === type && styles.typeBtnActive, !available && styles.typeBtnDisabled]}
-                onPress={() => available && setSessionType(type)}
-                disabled={!available}
+                style={[styles.typeBtn, active && styles.typeBtnActive, !typeRate && styles.typeBtnDisabled]}
+                onPress={() => setSessionType(type)}
+                disabled={!typeRate}
               >
                 <Ionicons
                   name={type === 'online' ? 'videocam' : 'fitness'}
                   size={22}
-                  color={sessionType === type ? COLORS.white : COLORS.textSecondary}
+                  color={active ? COLORS.white : COLORS.textSecondary}
                 />
-                <Text style={[styles.typeBtnText, sessionType === type && styles.typeBtnTextActive]}>
-                  {type === 'online' ? 'Online' : 'Offline'}
+                <Text style={[styles.typeBtnText, active && styles.typeBtnTextActive]}>
+                  {type === 'online' ? 'Online' : 'In person'}
                 </Text>
-                {available ? (
-                  <Text style={[styles.typeBtnPrice, sessionType === type && { color: 'rgba(255,255,255,0.85)' }]}>
-                    ₹{price}/hr
-                  </Text>
-                ) : (
-                  <Text style={styles.notAvailable}>N/A</Text>
-                )}
+                <Text style={[styles.typeBtnPrice, active && { color: 'rgba(255,255,255,0.85)' }]}>
+                  {typeRate ? `₹${typeRate}/hr` : 'N/A'}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Duration */}
         <Text style={styles.sectionLabel}>Duration</Text>
         <View style={styles.durationRow}>
           {DURATIONS.map((d) => (
@@ -145,61 +155,38 @@ export default function BookingScreen() {
           ))}
         </View>
 
-        {/* Date/Time */}
         <Text style={styles.sectionLabel}>Date & Time</Text>
-        <View style={styles.datePickerContainer}>
-          <DateTimePicker
-            value={selectedDate}
-            mode="datetime"
-            minimumDate={new Date()}
-            onChange={(_, date) => date && setSelectedDate(date)}
-            style={{ alignSelf: 'flex-start' }}
-          />
-        </View>
-
-        {/* Order Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Order Summary</Text>
-          <SummaryRow label={`Session (${durationMins} min @ ₹${rate}/hr)`} value={`₹${sessionCost}`} />
-          <SummaryRow label={`Platform fee (${CONFIG.platformFeePercent}%)`} value={`₹${platformFee}`} />
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>₹{total}</Text>
+        {Platform.OS === 'ios' ? (
+          <View style={styles.datePickerContainer}>
+            <DateTimePicker
+              value={selectedDate}
+              mode="datetime"
+              minimumDate={new Date()}
+              onChange={(_, date) => date && setSelectedDate(date)}
+              style={{ alignSelf: 'flex-start' }}
+            />
           </View>
-        </View>
+        ) : (
+          <TouchableOpacity style={styles.datePickerContainer} onPress={openAndroidPicker}>
+            <Text style={styles.dateText}>{dateLabel}</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* Escrow Notice */}
-        <View style={styles.escrowNotice}>
-          <Ionicons name="lock-closed" size={18} color={COLORS.primary} />
-          <Text style={styles.escrowText}>
-            ₹{total} will be held securely in escrow. Released to trainer only after you confirm satisfaction.
+        <View style={styles.priceCard}>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>{durationMins} min @ ₹{rate}/hr</Text>
+            <Text style={styles.priceValue}>₹{price}</Text>
+          </View>
+          <Text style={styles.payNote}>
+            No payment in the app. Pay {trainer.name.split(' ')[0]} directly after they confirm.
           </Text>
         </View>
 
-        {/* Wallet Balance */}
-        <View style={styles.walletRow}>
-          <Ionicons name="wallet" size={18} color={COLORS.textSecondary} />
-          <Text style={styles.walletText}>Wallet Balance: ₹{user?.walletBalance ?? 0}</Text>
-          {(user?.walletBalance ?? 0) < total && (
-            <TouchableOpacity style={styles.addMoneyBtn}>
-              <Text style={styles.addMoneyText}>+ Add Money</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Book Button */}
-        <TouchableOpacity
-          style={styles.bookBtn}
-          onPress={handleBook}
-          disabled={isLoading}
-        >
+        <TouchableOpacity style={styles.bookBtn} onPress={handleBook} disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator color={COLORS.white} />
           ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
-              <Text style={styles.bookBtnText}>Confirm Booking · ₹{total}</Text>
-            </>
+            <Text style={styles.bookBtnText}>Send Booking Request</Text>
           )}
         </TouchableOpacity>
 
@@ -208,13 +195,6 @@ export default function BookingScreen() {
     </SafeAreaView>
   );
 }
-
-const SummaryRow = ({ label, value }: { label: string; value: string }) => (
-  <View style={styles.summaryRow}>
-    <Text style={styles.summaryLabel}>{label}</Text>
-    <Text style={styles.summaryValue}>{value}</Text>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
@@ -269,7 +249,6 @@ const styles = StyleSheet.create({
   typeBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
   typeBtnTextActive: { color: COLORS.white },
   typeBtnPrice: { fontSize: 13, color: COLORS.textSecondary },
-  notAvailable: { fontSize: 12, color: COLORS.textMuted },
   durationRow: { flexDirection: 'row', gap: 8 },
   durationBtn: {
     flex: 1,
@@ -284,64 +263,26 @@ const styles = StyleSheet.create({
   durationText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
   durationTextActive: { color: COLORS.primary },
   datePickerContainer: { backgroundColor: COLORS.white, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: COLORS.border },
-  summaryCard: {
+  dateText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, paddingVertical: 4 },
+  priceCard: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 18,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  summaryTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 4 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryLabel: { fontSize: 14, color: COLORS.textSecondary },
-  summaryValue: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  totalLabel: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary },
-  totalValue: { fontSize: 20, fontWeight: '900', color: COLORS.primary },
-  escrowNotice: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: `${COLORS.primary}10`,
-    padding: 14,
-    borderRadius: 14,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}25`,
-  },
-  escrowText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
-  walletRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.white,
-    padding: 14,
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  walletText: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  addMoneyBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  addMoneyText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  priceLabel: { fontSize: 14, color: COLORS.textSecondary },
+  priceValue: { fontSize: 20, fontWeight: '900', color: COLORS.primary },
+  payNote: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
   bookBtn: {
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     height: 58,
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
     marginTop: 8,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 6,
   },
   bookBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
 });

@@ -19,7 +19,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../stores/authStore';
 import {
-  updateRateHistory,
+  updateTrainerRates,
   updateTrainerProfile,
   addTransformation,
   getTransformations,
@@ -35,7 +35,6 @@ export default function TrainerProfileManageScreen() {
   const [showEditRatesModal, setShowEditRatesModal] = useState(false);
   const [onlineRate, setOnlineRate] = useState(trainerProfile?.pricingOnline?.toString() ?? '499');
   const [offlineRate, setOfflineRate] = useState(trainerProfile?.pricingOffline?.toString() ?? '799');
-  const [rateReason, setRateReason] = useState('');
 
   // Modals for Coach Tools
   const [showTransformModal, setShowTransformModal] = useState(false);
@@ -82,11 +81,9 @@ export default function TrainerProfileManageScreen() {
     }
 
     try {
-      await updateRateHistory(trainerProfile.id, {
+      await updateTrainerRates(trainerProfile.id, {
         pricingOnline: newOnline,
         pricingOffline: newOffline,
-        effectiveFrom: new Date(),
-        reason: rateReason.trim() || 'Standard rate update',
       });
 
       const updated = {
@@ -96,11 +93,7 @@ export default function TrainerProfileManageScreen() {
       };
       setTrainerProfile(updated);
       setShowEditRatesModal(false);
-      setRateReason('');
-      Alert.alert(
-        'Rates Updated! 📈',
-        'New rates applied to your profile and logged in your personal finance history. Existing bookings retain their locked historical rate.'
-      );
+      Alert.alert('Rates updated', 'Existing bookings keep the price they were booked at.');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -392,7 +385,7 @@ export default function TrainerProfileManageScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Update Coaching Rates</Text>
             <Text style={styles.modalSub}>
-              All rate updates are logged in your personal finance history. Active clients keep their current locked rate.
+              Existing bookings keep the price they were booked at.
             </Text>
 
             <Text style={styles.inputLabel}>Online Session Rate (₹ / hr)</Text>
@@ -411,15 +404,6 @@ export default function TrainerProfileManageScreen() {
               onChangeText={setOfflineRate}
             />
 
-            <Text style={styles.inputLabel}>Reason / Note (optional)</Text>
-            <TextInput
-              style={styles.reasonInput}
-              placeholder="e.g. Raised rates after completing ISSA certification"
-              placeholderTextColor={COLORS.textMuted}
-              value={rateReason}
-              onChangeText={setRateReason}
-            />
-
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.cancelBtn}
@@ -428,7 +412,7 @@ export default function TrainerProfileManageScreen() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveRateBtn} onPress={handleUpdateRates}>
-                <Text style={styles.saveRateText}>Save & Log Rates</Text>
+                <Text style={styles.saveRateText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -751,7 +735,7 @@ export default function TrainerProfileManageScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSub}>
-              Real feedback submitted by verified clients after escrow completion.
+              Reviews from clients who completed a session through Bodivex.
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400, marginTop: 10 }}>
@@ -911,15 +895,6 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.background,
-  },
-  reasonInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
     color: COLORS.textPrimary,
     backgroundColor: COLORS.background,
   },

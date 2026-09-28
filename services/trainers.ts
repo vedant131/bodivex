@@ -13,7 +13,7 @@ import {
   GeoPoint,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
-import { TrainerProfile, TrainerFilter, TrainerRateHistory, Transformation, TrainerQA } from '../types/trainer';
+import { TrainerProfile, TrainerFilter, Transformation, TrainerQA } from '../types/trainer';
 import { MOCK_TRAINERS, MOCK_TRANSFORMATIONS } from '../constants/mockData';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -134,33 +134,22 @@ export const searchTrainersNearGym = async (gymName: string): Promise<TrainerPro
 export const createTrainerProfile = async (
   data: Partial<TrainerProfile>
 ): Promise<string> => {
-  try {
-    const col = collection(db, COLLECTIONS.TRAINERS);
-    // Add timeout race so it never hangs if Firestore is offline
-    const addPromise = addDoc(col, {
-      ...data,
-      rating: 5.0,
-      totalReviews: 1,
-      totalSessions: 1,
-      isKYCApproved: true,
-      kycStatus: 'approved',
-      bankAccountVerified: true,
-      isAvailableNow: true,
-      availabilityStatus: 'available_now',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), 2500)
-    );
-
-    const ref = await Promise.race([addPromise, timeoutPromise]);
-    return (ref as any).id;
-  } catch (err) {
-    console.log('Using local trainer profile ID (dev mode):', err);
-    return `trainer_${Date.now()}`;
-  }
+  // Firestore rejects undefined values (e.g. no profile photo yet)
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  const ref = await addDoc(collection(db, COLLECTIONS.TRAINERS), {
+    ...clean,
+    rating: 0,
+    totalReviews: 0,
+    totalSessions: 0,
+    // Hidden from clients until approved by hand in the Firebase console
+    isKYCApproved: false,
+    kycStatus: 'pending',
+    isAvailableNow: false,
+    availabilityStatus: 'offline',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
 };
 
 export const updateTrainerProfile = async (
@@ -193,37 +182,17 @@ export const updateAvailability = async (
   }
 };
 
-// ─── Rate History ─────────────────────────────────────────────────────────────
+// ─── Pricing ──────────────────────────────────────────────────────────────────
 
-export const updateRateHistory = async (
+export const updateTrainerRates = async (
   trainerId: string,
-  newRate: Omit<TrainerRateHistory, 'id' | 'trainerId'>
+  rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
 ): Promise<void> => {
-  const col = collection(db, COLLECTIONS.RATE_HISTORY);
-  await addDoc(col, {
-    trainerId,
-    ...newRate,
-    effectiveFrom: serverTimestamp(),
-  });
-  // Also update current rate on trainer profile
-  const trainerRef = doc(db, COLLECTIONS.TRAINERS, trainerId);
-  await updateDoc(trainerRef, {
-    ...(newRate.pricingOnline !== undefined && { pricingOnline: newRate.pricingOnline }),
-    ...(newRate.pricingOffline !== undefined && { pricingOffline: newRate.pricingOffline }),
-    ...(newRate.pricingMonthly !== undefined && { pricingMonthly: newRate.pricingMonthly }),
+  const clean = Object.fromEntries(Object.entries(rates).filter(([, v]) => v !== undefined));
+  await updateDoc(doc(db, COLLECTIONS.TRAINERS, trainerId), {
+    ...clean,
     updatedAt: serverTimestamp(),
   });
-};
-
-export const getRateHistory = async (trainerId: string): Promise<TrainerRateHistory[]> => {
-  const col = collection(db, COLLECTIONS.RATE_HISTORY);
-  const q = query(col, where('trainerId', '==', trainerId), orderBy('effectiveFrom', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({
-    id: d.id,
-    ...d.data(),
-    effectiveFrom: d.data().effectiveFrom?.toDate?.() ?? new Date(),
-  })) as TrainerRateHistory[];
 };
 
 // ─── Transformations ──────────────────────────────────────────────────────────

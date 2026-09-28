@@ -15,18 +15,18 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAuthStore } from '../../stores/authStore';
-import { getAllClientSummaries } from '../../services/finance';
+import { getClientSummaries } from '../../services/bookings';
 import { createScheduledCheckIn } from '../../services/chat';
 import { COLORS } from '../../constants/colors';
-import { ClientFinanceSummary } from '../../types/finance';
+import { ClientSummary } from '../../types/session';
 
 export default function TrainerClientsScreen() {
   const { trainerProfile } = useAuthStore();
-  const [clients, setClients] = useState<ClientFinanceSummary[]>([]);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Client Details & Check-In Modal
-  const [selectedClient, setSelectedClient] = useState<ClientFinanceSummary | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientSummary | null>(null);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInMsg, setCheckInMsg] = useState('');
 
@@ -40,7 +40,7 @@ export default function TrainerClientsScreen() {
   const loadClients = async () => {
     setIsLoading(true);
     try {
-      const list = await getAllClientSummaries(trainerId);
+      const list = await getClientSummaries(trainerId);
       setClients(list);
     } catch (e) {
       console.error(e);
@@ -87,7 +87,7 @@ export default function TrainerClientsScreen() {
             <Ionicons name="people-outline" size={54} color={COLORS.textMuted} />
             <Text style={styles.emptyTitle}>No active clients yet</Text>
             <Text style={styles.emptySub}>
-              Clients who book sessions with you will show up here with full financial and coaching history.
+              Clients who book sessions with you will show up here with their session history.
             </Text>
           </View>
         ) : (
@@ -109,31 +109,27 @@ export default function TrainerClientsScreen() {
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.totalRevenue}>₹{client.totalEarned.toLocaleString('en-IN')}</Text>
-                  <Text style={styles.sessionCount}>{client.completedSessions} sessions done</Text>
+                  <Text style={styles.totalRevenue}>{client.completedSessions}</Text>
+                  <Text style={styles.sessionCount}>sessions done</Text>
                 </View>
               </View>
 
               <View style={styles.clientBottom}>
-                <View style={styles.rateBadge}>
-                  <Ionicons name="pricetag-outline" size={12} color={COLORS.primary} />
-                  <Text style={styles.rateText}>
-                    Historical Rate Tracking Active
-                  </Text>
-                </View>
-
+                <View style={{ flex: 1 }} />
+                {client.chatId && (
                 <TouchableOpacity
                   style={styles.quickChatBtn}
                   onPress={() =>
                     router.push({
                       pathname: '/chat/[id]',
-                      params: { id: client.clientId, name: client.clientName },
+                      params: { id: client.chatId!, name: client.clientName },
                     })
                   }
                 >
                   <Ionicons name="chatbubble-outline" size={14} color={COLORS.white} />
                   <Text style={styles.quickChatText}>Chat</Text>
                 </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
           ))
@@ -158,38 +154,15 @@ export default function TrainerClientsScreen() {
 
             {/* Financial Overview with this client */}
             <View style={styles.historyCard}>
-              <Text style={styles.historyTitle}>Personal Financial Record</Text>
+              <Text style={styles.historyTitle}>Sessions</Text>
               <View style={styles.historyRow}>
                 <View>
-                  <Text style={styles.historyVal}>₹{selectedClient?.totalEarned.toLocaleString('en-IN')}</Text>
-                  <Text style={styles.historyLabel}>Total Lifetime Revenue</Text>
+                  <Text style={styles.historyVal}>{selectedClient?.totalSessions}</Text>
+                  <Text style={styles.historyLabel}>Booked</Text>
                 </View>
                 <View>
                   <Text style={styles.historyVal}>{selectedClient?.completedSessions}</Text>
-                  <Text style={styles.historyLabel}>Completed Sessions</Text>
-                </View>
-                <View>
-                  <Text style={styles.historyVal}>{selectedClient?.cancelledSessions}</Text>
-                  <Text style={styles.historyLabel}>Cancelled</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Rate Evolution */}
-            <View style={styles.rateHistoryBox}>
-              <Text style={styles.rateHistoryTitle}>Rate Progression with Client</Text>
-              <Text style={styles.rateHistoryDesc}>
-                All sessions locked the trainer's rate at the exact booking moment.
-              </Text>
-              <View style={styles.rateTagRow}>
-                <View style={styles.rateTag}>
-                  <Text style={styles.rateTagText}>First Session: ₹{selectedClient?.rateHistory?.[selectedClient.rateHistory.length - 1]?.pricingOnline ?? 399}</Text>
-                </View>
-                <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
-                <View style={[styles.rateTag, styles.rateTagCurrent]}>
-                  <Text style={[styles.rateTagText, styles.rateTagTextCurrent]}>
-                    Current Rate: ₹{trainerProfile?.pricingOnline ?? 499}
-                  </Text>
+                  <Text style={styles.historyLabel}>Completed</Text>
                 </View>
               </View>
             </View>
@@ -209,11 +182,11 @@ export default function TrainerClientsScreen() {
                 onPress={() => {
                   const c = selectedClient;
                   setSelectedClient(null);
-                  if (c) {
+                  if (c?.chatId) {
                     router.push({
                       pathname: '/chat/[id]',
-                      params: { id: c.clientId, name: c.clientName },
-                    })
+                      params: { id: c.chatId, name: c.clientName },
+                    });
                   }
                 }}
               >
@@ -316,16 +289,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  rateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${COLORS.primary}12`,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  rateText: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
   quickChatBtn: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
@@ -359,28 +322,6 @@ const styles = StyleSheet.create({
   historyRow: { flexDirection: 'row', justifyContent: 'space-between' },
   historyVal: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
   historyLabel: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  rateHistoryBox: {
-    backgroundColor: COLORS.background,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 6,
-  },
-  rateHistoryTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary },
-  rateHistoryDesc: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
-  rateTagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  rateTag: {
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  rateTagCurrent: { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}12` },
-  rateTagText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
-  rateTagTextCurrent: { color: COLORS.primary, fontWeight: '700' },
   modalActionRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
   checkInActionBtn: {
     flex: 1,

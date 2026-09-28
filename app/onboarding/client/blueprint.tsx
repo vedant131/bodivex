@@ -52,6 +52,8 @@ Generate a concise, motivating Fitness Blueprint as a JSON object with these exa
 }
 Return ONLY valid JSON, no markdown.`;
 
+  if (!CONFIG.gemini.apiKey) return getFallbackBlueprint(goals, fitnessLevel);
+
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${CONFIG.gemini.apiKey}`,

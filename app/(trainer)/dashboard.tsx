@@ -75,12 +75,12 @@ export default function TrainerDashboardScreen() {
     Alert.alert('Decline Session', `Are you sure you want to decline ${clientName}'s request?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Decline & Refund',
+        text: 'Decline',
         style: 'destructive',
         onPress: async () => {
           try {
             await trainerRejectSession(sessionId, 'Trainer declined session');
-            Alert.alert('Session Declined', 'Client has been notified and refunded.');
+            Alert.alert('Session declined', 'The client has been notified.');
           } catch (e: any) {
             Alert.alert('Error', e.message);
           }
@@ -108,12 +108,6 @@ export default function TrainerDashboardScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.arenaShortcutText}>🏆 Rank</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.financeShortcut}
-              onPress={() => router.push('/(trainer)/finance')}
-            >
-              <Ionicons name="wallet-outline" size={20} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -237,12 +231,11 @@ export default function TrainerDashboardScreen() {
           />
         </View>
 
-        {/* Pending Requests Section (Escrow Protected Bookings) */}
+        {/* Pending booking requests */}
         {pendingRequests.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>⚡ Booking Requests ({pendingRequests.length})</Text>
-              <Text style={styles.escrowNoticeText}>Payment guaranteed in escrow</Text>
             </View>
 
             {pendingRequests.map((req) => (
@@ -258,8 +251,8 @@ export default function TrainerDashboardScreen() {
                     </Text>
                   </View>
                   <View style={styles.earnedBadge}>
-                    <Text style={styles.earnedAmount}>+₹{req.netEarned}</Text>
-                    <Text style={styles.earnedSub}>Escrow held</Text>
+                    <Text style={styles.earnedAmount}>₹{req.price}</Text>
+                    <Text style={styles.earnedSub}>paid to you</Text>
                   </View>
                 </View>
 
@@ -412,14 +405,6 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 13, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
   welcomeName: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginTop: 2 },
-  financeShortcut: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: `${COLORS.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   arenaShortcut: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -568,7 +553,6 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 16, marginTop: 10, gap: 12 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
-  escrowNoticeText: { fontSize: 11, color: COLORS.warning, fontWeight: '700' },
   requestCard: {
     backgroundColor: COLORS.white,
     borderRadius: 16,

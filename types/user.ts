@@ -58,7 +58,6 @@ export interface User {
   name: string;
   profilePhoto?: string;
   role: UserRole;
-  walletBalance: number;
   kycStatus: KYCStatus;
   aadhaarVerified: boolean;
   createdAt: Date;
