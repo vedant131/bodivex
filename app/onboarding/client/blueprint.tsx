@@ -1,25 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import AnimatedR, { FadeInDown } from 'react-native-reanimated';
+import { OnboardingShell } from '../../../components/ui/OnboardingShell';
+import { Glass } from '../../../components/ui/Glass';
+import { Button } from '../../../components/ui/Button';
+import { T, type } from '../../../constants/theme';
 import { saveClientProfile, updateUserProfile } from '../../../services/auth';
 import { uploadImage } from '../../../services/storage';
 import { useAuthStore } from '../../../stores/authStore';
-import { COLORS } from '../../../constants/colors';
 import { FitnessGoal, FitnessBlueprint, FitnessGoalLabel } from '../../../types/user';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../../services/firebase';
-import { Screen } from '../../../components/ui/Screen';
+
+const AnimatedView = AnimatedR.View;
 
 // ─── Gemini AI Blueprint Generator ──────────────────────────────────────────
 
@@ -83,7 +78,6 @@ export default function BlueprintScreen() {
   const [blueprint, setBlueprint] = useState<FitnessBlueprint | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     generateBlueprint();
@@ -121,7 +115,6 @@ export default function BlueprintScreen() {
         clientProfile?.goals ?? [FitnessGoal.GENERAL_FITNESS]
       );
       setBlueprint(bp);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
       // Save (incl. photo upload) in the background; the Find button waits on `saving`.
       if (user) saveProfile(bp);
     } catch (e) {
@@ -131,161 +124,63 @@ export default function BlueprintScreen() {
     }
   };
 
+  const rows = blueprint
+    ? [
+        { icon: 'fitness' as const, label: 'Ideal coach', v: blueprint.trainerType },
+        { icon: 'list' as const, label: 'Training style', v: blueprint.recommendedStyle },
+        { icon: 'time' as const, label: 'Timeline', v: blueprint.estimatedTimeline },
+        { icon: 'bulb' as const, label: 'Tips', v: blueprint.additionalNotes },
+      ]
+    : [];
+
   return (
-    <Screen preset="calm">
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingTitle}>Analyzing your profile...</Text>
-            <Text style={styles.loadingSubtitle}>
-              Building your personal fitness blueprint
-            </Text>
-          </View>
-        ) : blueprint ? (
-          <Animated.View style={{ opacity: fadeAnim }}>
-            {/* Header */}
-            <LinearGradient
-              colors={[COLORS.secondary, COLORS.accent]}
-              style={styles.header}
-            >
-              <Ionicons name="sparkles" size={34} color={COLORS.onColor} />
-              <Text style={styles.headerTitle}>Your Fitness Blueprint</Text>
-              <Text style={styles.headerSub}>Personalized for {clientProfile?.name}</Text>
-            </LinearGradient>
-
-            {/* Blueprint Card */}
-            <View style={styles.card}>
-              <InfoRow icon="fitness" label="Ideal Trainer" value={blueprint.trainerType} />
-              <Divider />
-              <InfoRow icon="list" label="Training Style" value={blueprint.recommendedStyle} />
-              <Divider />
-              <InfoRow icon="time" label="Timeline" value={blueprint.estimatedTimeline} />
-              <Divider />
-              <InfoRow icon="bulb" label="Tips" value={blueprint.additionalNotes} />
-            </View>
-
-            {/* Goals Confirmed */}
-            <View style={styles.goalsCard}>
-              <Text style={styles.goalsTitle}>Your Goals</Text>
-              <View style={styles.goalChips}>
-                {blueprint.goals.map((g) => (
-                  <View key={g} style={styles.goalChip}>
-                    <Text style={styles.goalChipText}>{FitnessGoalLabel[g]}</Text>
-                  </View>
-                ))}
+    <OnboardingShell
+      step={4}
+      total={4}
+      title={isLoading ? 'Building your plan…' : 'Your plan'}
+      subtitle={isLoading ? 'Takes a few seconds.' : `Made for ${clientProfile?.name?.split(' ')[0] ?? 'you'}. Coaches are matched to it.`}
+      cta={saving ? 'Saving…' : 'Find my coach'}
+      onNext={() => router.replace('/(client)/home')}
+      canNext={!isLoading && !saving && !saveError}
+      loading={saving}
+    >
+      {isLoading ? (
+        <ActivityIndicator color={T.text} size="large" style={{ marginTop: 40 }} />
+      ) : blueprint ? (
+        <AnimatedView entering={FadeInDown.duration(500)} style={{ gap: 12 }}>
+          <Glass radius={T.radius.xl} style={styles.card}>
+            {rows.map((r) => (
+              <View key={r.label} style={styles.row}>
+                <View style={styles.icon}><Ionicons name={r.icon} size={16} color={T.accent} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={type.micro}>{r.label}</Text>
+                  <Text style={[type.body, { marginTop: 2 }]}>{r.v}</Text>
+                </View>
               </View>
-            </View>
-
-            {saveError && (
-              <TouchableOpacity onPress={() => saveProfile(blueprint)}>
-                <Text style={styles.saveError}>Couldn't save your profile ({saveError}). Tap to retry.</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={[styles.findBtn, (saveError || saving) ? { opacity: 0.5 } : null]}
-              disabled={!!saveError || saving}
-              onPress={() => router.replace('/(client)/home')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="search" size={20} color={COLORS.onColor} />
-              <Text style={styles.findBtnText}>{saving ? 'Saving your profile…' : 'Find My Perfect Trainer'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={generateBlueprint} style={styles.regenerateBtn}>
-              <Ionicons name="refresh" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.regenerateBtnText}>Regenerate Blueprint</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        ) : null}
-      </ScrollView>
-    </Screen>
+            ))}
+          </Glass>
+          <View style={styles.goals}>
+            {blueprint.goals.map((g) => (
+              <Glass key={g} radius={T.radius.pill} style={styles.goal}>
+                <Text style={styles.goalText}>{FitnessGoalLabel[g]}</Text>
+              </Glass>
+            ))}
+          </View>
+          {saveError && (
+            <Button title="Couldn't save — tap to retry" variant="danger" size="md" onPress={() => saveProfile(blueprint)} />
+          )}
+          <Button title="Regenerate" icon="refresh" variant="ghost" size="sm" onPress={generateBlueprint} />
+        </AnimatedView>
+      ) : null}
+    </OnboardingShell>
   );
 }
 
-const InfoRow = ({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) => (
-  <View style={styles.infoRow}>
-    <Ionicons name={icon} size={20} color={COLORS.primary} />
-    <View style={{ flex: 1 }}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  </View>
-);
-
-const Divider = () => <View style={styles.divider} />;
-
 const styles = StyleSheet.create({
-  saveError: { color: COLORS.danger, fontSize: 13, textAlign: 'center', marginBottom: 8 },
-  container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: 24, gap: 16 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 120, gap: 16 },
-  loadingTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center' },
-  loadingSubtitle: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
-  header: {
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  headerEmoji: { fontSize: 40 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.onColor },
-  headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-    gap: 4,
-  },
-  infoRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', paddingVertical: 8 },
-  infoEmoji: { fontSize: 22, marginTop: 2 },
-  infoLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  infoValue: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 22, marginTop: 2 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 2 },
-  goalsCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-    gap: 12,
-  },
-  goalsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  goalChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  goalChip: {
-    backgroundColor: `${COLORS.primary}15`,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}40`,
-  },
-  goalChipText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
-  findBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    height: 58,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  findBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
-  regenerateBtn: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
-  },
-  regenerateBtnText: { color: COLORS.textSecondary, fontSize: 14 },
+  card: { padding: 16, gap: 16 },
+  row: { flexDirection: 'row', gap: 12 },
+  icon: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,45,111,0.16)', alignItems: 'center', justifyContent: 'center' },
+  goals: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  goal: { paddingHorizontal: 14, height: 34, justifyContent: 'center' },
+  goalText: { color: T.text, fontSize: 13, fontWeight: '700' },
 });

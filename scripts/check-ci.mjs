@@ -5,7 +5,8 @@ import { spawnSync, execSync } from 'node:child_process';
 const r = spawnSync(
   'npx firebase emulators:exec --config firebase.check.json --project demo-bodivex ' +
     '"node scripts/seed.mjs && node scripts/check-flow.mjs"',
-  { stdio: 'inherit', shell: true }
+  // 60s for functions to load (default 10s flakes when the laptop is busy)
+  { stdio: 'inherit', shell: true, env: { ...process.env, FUNCTIONS_DISCOVERY_TIMEOUT: '60' } }
 );
 
 // Note: on Windows the Firestore emulator's JVM can outlive emulators:exec; free its ports.

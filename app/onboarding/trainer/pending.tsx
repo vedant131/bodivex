@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../constants/colors';
-import { CONFIG } from '../../../constants/config';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useAuthStore } from '../../../stores/authStore';
 import { subscribeToOwnTrainerProfile } from '../../../services/trainers';
 import { Screen } from '../../../components/ui/Screen';
+import { Glass } from '../../../components/ui/Glass';
+import { Button } from '../../../components/ui/Button';
+import { T, type } from '../../../constants/theme';
+import { CONFIG } from '../../../constants/config';
 
 export default function TrainerPendingScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
@@ -20,84 +22,45 @@ export default function TrainerPendingScreen() {
   }, [user?.id]);
 
   return (
-    <Screen preset="trainer">
-      <View style={styles.content}>
-        <View style={[styles.iconCircle, !approved && { backgroundColor: `${COLORS.warning}18` }]}>
-          <Ionicons
-            name={approved ? 'checkmark-done' : 'hourglass-outline'}
-            size={54}
-            color={approved ? COLORS.success : COLORS.warning}
-          />
-        </View>
+    <Screen preset={approved ? 'hero' : 'trainer'} edges={['top', 'bottom']}>
+      <View style={styles.body}>
+        <Animated.View entering={ZoomIn.springify().damping(14)} style={[styles.badge, { backgroundColor: approved ? 'rgba(155,255,58,0.16)' : 'rgba(255,176,32,0.16)' }]}>
+          <Ionicons name={approved ? 'checkmark-done' : 'hourglass-outline'} size={52} color={approved ? T.ring2 : T.warning} />
+        </Animated.View>
 
-        <Text style={styles.title}>{approved ? "You're live!" : 'Profile under review'}</Text>
-        <Text style={styles.subtitle}>
-          {approved
-            ? 'Clients in your city can now find and book you.'
-            : `We'll contact you to verify your ID and certificates, usually within ${CONFIG.trainerApprovalHours} hours. You can set up your profile meanwhile.`}
-        </Text>
+        <Animated.View entering={FadeInDown.delay(150)} style={{ gap: 8, alignItems: 'center' }}>
+          <Text style={[type.display, { textAlign: 'center' }]}>{approved ? "You're live!" : 'Under review'}</Text>
+          <Text style={[type.body, { color: T.text2, textAlign: 'center' }]}>
+            {approved
+              ? 'Clients in your city can now find and book you.'
+              : `We'll contact you to verify your ID and certificates, usually within ${CONFIG.trainerApprovalHours} hours. You can set up your profile meanwhile.`}
+          </Text>
+        </Animated.View>
 
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>
-              Your first {CONFIG.freeClientsPerTrainer} clients are free
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>Clients pay you directly</Text>
-          </View>
-        </View>
+        <Glass radius={T.radius.xl} style={styles.card}>
+          <Row icon="people-outline" text={`Your first ${CONFIG.freeClientsPerTrainer} clients are free`} />
+          <Row icon="cash-outline" text="Clients pay you directly" />
+          <Row icon="chatbubbles-outline" text="Answer public questions to get discovered" />
+        </Glass>
+      </View>
 
-        <TouchableOpacity style={styles.dashboardBtn} onPress={() => router.replace('/(trainer)/dashboard')}>
-          <Text style={styles.dashboardBtnText}>Go to Dashboard</Text>
-        </TouchableOpacity>
+      <View style={styles.footer}>
+        <Button title="Go to dashboard" icon="arrow-forward" onPress={() => router.replace('/(trainer)/dashboard')} />
       </View>
     </Screen>
   );
 }
 
+const Row = ({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Ionicons name={icon} size={20} color={T.accent} />
+    <Text style={type.body}>{text}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.card },
-  content: {
-    flex: 1,
-    paddingHorizontal: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: `${COLORS.success}18`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
-  infoCard: {
-    width: '100%',
-    backgroundColor: COLORS.background,
-    borderRadius: 16,
-    padding: 18,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginVertical: 12,
-  },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  infoText: { fontSize: 14, color: COLORS.textPrimary, fontWeight: '600' },
-  dashboardBtn: {
-    width: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  dashboardBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
+  body: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, gap: 24 },
+  badge: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
+  card: { alignSelf: 'stretch', padding: 18, gap: 16 },
+  footer: { paddingHorizontal: 20, paddingBottom: 8 },
 });
