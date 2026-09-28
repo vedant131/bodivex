@@ -20,6 +20,9 @@ const T = (name, city, gym, specs, exp, online, offline, pref, rating, reviews, 
   name, city, gym, specs, exp, online, offline, pref, rating, reviews, sessions, bio,
 });
 
+// Placeholder portraits for local testing only (randomuser.me); real trainers upload their own.
+const PHOTOS = ['men/32', 'women/44', 'men/75', 'women/68', 'men/52', 'women/21', 'men/11', 'women/90', 'men/85'];
+
 const TRAINERS = [
   T('Arjun Sharma', 'Mumbai', "Gold's Gym Bandra", ['Weight Loss', 'Strength Training', 'Bodybuilding'], 6, 499, 899, 'both', 4.9, 148, 520,
     'ACE certified coach focused on fat loss and strength. 300+ clients coached across Mumbai.'),
@@ -60,6 +63,7 @@ for (const [i, t] of TRAINERS.entries()) {
     userId: uid,
     name: t.name,
     bio: t.bio,
+    profilePhoto: `https://randomuser.me/api/portraits/${PHOTOS[i]}.jpg`,
     city: t.city,
     state: 'Maharashtra',
     specializations: t.specs,

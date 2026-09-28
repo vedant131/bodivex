@@ -13,7 +13,11 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/colors';
+import { Backdrop } from '../../components/ui/Backdrop';
+import { Glass } from '../../components/ui/Glass';
+import { Button } from '../../components/ui/Button';
+import { IconButton } from '../../components/ui/Bits';
+import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
 
 const INDIA_DIAL_CODE = '+91';
@@ -44,124 +48,48 @@ export default function PhoneScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inner}
-      >
-        {/* Back */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      <Backdrop preset="calm" />
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
+          <IconButton icon="chevron-back" label="Back" onPress={() => router.back()} />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconBadge}>
-            <Ionicons
-              name={role === 'trainer' ? 'barbell' : 'person'}
-              size={28}
-              color={COLORS.primary}
+          <View style={{ marginTop: 32 }}>
+            <Text style={type.micro}>{role === 'trainer' ? 'Coach account' : 'Client account'}</Text>
+            <Text style={[type.display, { marginTop: 8 }]}>What's your{'\n'}number?</Text>
+            <Text style={[type.body, { color: T.text2, marginTop: 10 }]}>We'll text you a 6-digit code.</Text>
+          </View>
+
+          <Glass radius={T.radius.lg} style={styles.inputWrap}>
+            <Text style={styles.dial}>{INDIA_DIAL_CODE}</Text>
+            <View style={styles.sep} />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="98765 43210"
+              placeholderTextColor={T.text3}
+              keyboardType="number-pad"
+              maxLength={10}
+              value={phone}
+              onChangeText={(v) => setPhone(v.replace(/\D/g, ''))}
+              autoFocus
+              selectionColor={T.accent}
+              accessibilityLabel="Mobile number"
             />
-          </View>
-          <Text style={styles.title}>Enter your number</Text>
-          <Text style={styles.subtitle}>
-            {role === 'trainer'
-              ? "You're signing up as a Fitness Trainer"
-              : "You're signing up as a Client"}
-          </Text>
-        </View>
+          </Glass>
 
-        {/* Phone Input */}
-        <View style={styles.inputWrapper}>
-          <View style={styles.dialCode}>
-            <Text style={styles.flag}>🇮🇳</Text>
-            <Text style={styles.dialCodeText}>{INDIA_DIAL_CODE}</Text>
-          </View>
-          <View style={styles.divider} />
-          <TextInput
-            ref={inputRef}
-            style={styles.phoneInput}
-            placeholder="98765 43210"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="number-pad"
-            maxLength={10}
-            value={phone}
-            onChangeText={setPhone}
-            autoFocus
-          />
-        </View>
-
-        <Text style={styles.hint}>
-          We'll send you a one-time password to verify your number.
-        </Text>
-
-        {/* CTA */}
-        <TouchableOpacity
-          style={[styles.sendBtn, !isValid && styles.sendBtnDisabled]}
-          onPress={handleSendOTP}
-          disabled={!isValid || isLoading}
-          activeOpacity={0.85}
-        >
-          {isLoading ? (
-            <ActivityIndicator color={COLORS.white} />
-          ) : (
-            <>
-              <Text style={styles.sendBtnText}>Send OTP</Text>
-              <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
-            </>
-          )}
-        </TouchableOpacity>
-
-        <Text style={styles.terms}>
-          By proceeding, you accept our Terms & Privacy Policy
-        </Text>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <View style={{ flex: 1 }} />
+          <Button title="Send code" icon="arrow-forward" onPress={handleSendOTP} disabled={!isValid} loading={isLoading} />
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
-  inner: { flex: 1, paddingHorizontal: 24 },
-  backBtn: { marginTop: 12, marginBottom: 8, alignSelf: 'flex-start' },
-  header: { marginTop: 32, marginBottom: 40, gap: 12 },
-  iconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: `${COLORS.primary}18`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary },
-  subtitle: { fontSize: 15, color: COLORS.textSecondary },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 62,
-    backgroundColor: `${COLORS.primary}08`,
-  },
-  dialCode: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  flag: { fontSize: 22 },
-  dialCodeText: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
-  divider: { width: 1.5, height: 30, backgroundColor: COLORS.border, marginHorizontal: 12 },
-  phoneInput: { flex: 1, fontSize: 20, fontWeight: '600', color: COLORS.textPrimary, letterSpacing: 1 },
-  hint: { fontSize: 13, color: COLORS.textMuted, marginTop: 12, lineHeight: 20 },
-  sendBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    height: 56,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 32,
-  },
-  sendBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  sendBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
-  terms: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 20 },
+  inner: { flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', marginTop: 32, height: 64, paddingHorizontal: 18 },
+  dial: { color: T.text, fontSize: 20, fontWeight: '700' },
+  sep: { width: 1, height: 26, backgroundColor: T.glassBorder, marginHorizontal: 14 },
+  input: { flex: 1, color: T.text, fontSize: 22, fontWeight: '700', letterSpacing: 1 },
 });
