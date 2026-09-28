@@ -1,426 +1,141 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '../stores/authStore';
-import {
-  rankTrainers,
-  RankingScope,
-  RankingMode,
-  RankedTrainer,
-  getTrainers,
-} from '../services/trainers';
-import { TrainerProfile } from '../types/trainer';
-import { COLORS } from '../constants/colors';
+import { rankTrainers, RankingScope, RankingMode, RankedTrainer, getTrainers } from '../services/trainers';
 import { Screen } from '../components/ui/Screen';
+import { Glass } from '../components/ui/Glass';
+import { PressableScale } from '../components/ui/PressableScale';
+import { Avatar, Chip, IconButton } from '../components/ui/Bits';
+import { T, type } from '../constants/theme';
+import { TrainerProfile } from '../types/trainer';
 
-const { width } = Dimensions.get('window');
+const MODES: { id: RankingMode; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'online', label: 'Online' },
+  { id: 'offline', label: 'In person' },
+];
+const MEDAL = ['#FFD54A', '#D8DEE9', '#E0A06B'];
+
+const open = (r: RankedTrainer) => router.push(`/trainer/${r.trainer.id}`);
+
+function Podium({ r, place }: { r: RankedTrainer; place: 0 | 1 | 2 }) {
+  const size = place === 0 ? 84 : 66;
+  return (
+    <PressableScale onPress={() => open(r)} style={[styles.podium, place === 0 && { marginTop: -18 }]} accessibilityLabel={`Rank ${r.rank}, ${r.trainer.name}`}>
+      <View style={[styles.medalRing, { borderColor: MEDAL[place] }]}>
+        <Avatar uri={r.trainer.profilePhoto} name={r.trainer.name} size={size} radius={size / 2} />
+      </View>
+      <View style={[styles.medal, { backgroundColor: MEDAL[place] }]}>
+        <Text style={styles.medalText}>{r.rank}</Text>
+      </View>
+      <Text style={[type.headline, { fontSize: 14, textAlign: 'center' }]} numberOfLines={1}>{r.trainer.name.split(' ')[0]}</Text>
+      <Text style={type.caption}>{r.rating ? `${r.rating.toFixed(1)}★` : 'New'}</Text>
+    </PressableScale>
+  );
+}
 
 export default function LeaderboardScreen() {
   const { trainerProfile, clientProfile } = useAuthStore();
+  const city = trainerProfile?.city || clientProfile?.city || 'Mumbai';
   const [scope, setScope] = useState<RankingScope>('city');
   const [mode, setMode] = useState<RankingMode>('all');
   const [trainers, setTrainers] = useState<TrainerProfile[]>([]);
-
-  const userCity = trainerProfile?.city || clientProfile?.city || 'Mumbai';
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getTrainers().then(setTrainers).catch((e) => console.warn('Leaderboard load failed', e));
+    getTrainers().then(setTrainers).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const rankedTrainers = useMemo(
-    () => rankTrainers(trainers, scope, userCity, mode),
-    [trainers, scope, userCity, mode]
-  );
-
-  const topThree = rankedTrainers.slice(0, 3);
-  // Podium needs 3; with fewer coaches (early days in a city) list everyone instead
-  const restTrainers = topThree.length >= 3 ? rankedTrainers.slice(3) : rankedTrainers;
+  const ranked = useMemo(() => rankTrainers(trainers, scope, city, mode), [trainers, scope, city, mode]);
+  const podium = ranked.length >= 3 ? ranked.slice(0, 3) : [];
+  const rest = podium.length ? ranked.slice(3) : ranked;
+  const myRank = trainerProfile ? ranked.find((r) => r.trainer.id === trainerProfile.id)?.rank : undefined;
 
   return (
-    <Screen preset="calm" edges={['top']}>
-      {/* Header */}
+    <Screen preset="hero" edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        <IconButton icon="chevron-back" label="Back" onPress={() => router.back()} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Coach rankings</Text>
-          <Text style={styles.headerSub}>Competitive rankings across India</Text>
+          <Text style={type.title}>Coach rankings</Text>
+          <Text style={type.caption}>Based on in-app sessions, ratings and reviews</Text>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-        <>
-            {/* Filters Row 1: Scope (Pan-India vs My City) */}
-            <View style={styles.filterSection}>
-              <View style={styles.scopePillContainer}>
-                <TouchableOpacity
-                  style={[styles.scopePill, scope === 'india' && styles.scopePillActive]}
-                  onPress={() => setScope('india')}
-                >
-                  <Text style={[styles.scopePillText, scope === 'india' && styles.scopePillTextActive]}>
-                    All cities
-                  </Text>
-                </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <View style={styles.filters}>
+          <Chip label={city} icon="location" active={scope === 'city'} onPress={() => setScope('city')} />
+          <Chip label="All cities" active={scope === 'india'} onPress={() => setScope('india')} />
+          <View style={styles.vsep} />
+          {MODES.map((m) => <Chip key={m.id} label={m.label} active={mode === m.id} onPress={() => setMode(m.id)} />)}
+        </View>
 
-                <TouchableOpacity
-                  style={[styles.scopePill, scope === 'city' && styles.scopePillActive]}
-                  onPress={() => setScope('city')}
-                >
-                  <Text style={[styles.scopePillText, scope === 'city' && styles.scopePillTextActive]}>
-                    {userCity}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+        {myRank && (
+          <LinearGradient colors={T.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.mine}>
+            <Ionicons name="trophy" size={20} color="#fff" />
+            <Text style={styles.mineText}>You're #{myRank} {scope === 'city' ? `in ${city}` : 'overall'}</Text>
+          </LinearGradient>
+        )}
 
-              {/* Filters Row 2: Mode (All, Offline, Online, Both) */}
-              <View style={styles.modeTabsRow}>
-                {([
-                  { id: 'all', label: 'All Modes' },
-                  { id: 'offline', label: 'Offline Gym' },
-                  { id: 'online', label: 'Online Live' },
-                  { id: 'both', label: 'Hybrid' },
-                ] as const).map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[styles.modeChip, mode === m.id && styles.modeChipActive]}
-                    onPress={() => setMode(m.id)}
-                  >
-                    <Text style={[styles.modeChipText, mode === m.id && styles.modeChipTextActive]}>
-                      {m.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Top 3 Podium Card */}
-            {topThree.length >= 3 && (
-              <LinearGradient
-                colors={['#1A1A2E', '#16213E']}
-                style={styles.podiumContainer}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={styles.podiumTitle}>TOP PERFORMING COACHES</Text>
-                <Text style={styles.podiumSub}>
-                  Ranked by verified client sessions, ratings & consistency
-                </Text>
-
-                <View style={styles.podiumRow}>
-                  {/* #2 Silver (Left) */}
-                  <PodiumAvatar item={topThree[1]} rank={2} medal="2" color="#C0C0C0" height={100} />
-
-                  {/* #1 Gold (Center) */}
-                  <PodiumAvatar item={topThree[0]} rank={1} medal="1" color="#FFD700" height={130} isFirst />
-
-                  {/* #3 Bronze (Right) */}
-                  <PodiumAvatar item={topThree[2]} rank={3} medal="3" color="#CD7F32" height={85} />
-                </View>
-              </LinearGradient>
+        {loading ? (
+          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+        ) : ranked.length === 0 ? (
+          <Glass radius={T.radius.xl} style={styles.empty}>
+            <Text style={type.caption}>No coaches match these filters yet.</Text>
+          </Glass>
+        ) : (
+          <>
+            {podium.length > 0 && (
+              <Animated.View entering={FadeInDown.duration(500)}>
+                <Glass radius={T.radius.xl} style={styles.podiumCard}>
+                  <Podium r={podium[1]} place={1} />
+                  <Podium r={podium[0]} place={0} />
+                  <Podium r={podium[2]} place={2} />
+                </Glass>
+              </Animated.View>
             )}
-
-            {/* List of Ranked Coaches */}
-            <View style={styles.listCard}>
-              <Text style={styles.listHeaderTitle}>
-                {scope === 'india' ? 'Pan-India Standings' : `Top Coaches in ${userCity}`}
-              </Text>
-
-              {restTrainers.map((item) => (
-                <TouchableOpacity
-                  key={item.trainer.id}
-                  style={styles.rankRow}
-                  onPress={() => router.push(`/trainer/${item.trainer.id}`)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.rankNumberBox}>
-                    <Text style={styles.rankNumberText}>#{item.rank}</Text>
-                  </View>
-
-                  <View style={styles.trainerAvatar}>
-                    {item.trainer.profilePhoto ? (
-                      <Image source={{ uri: item.trainer.profilePhoto }} style={styles.avatarImg} contentFit="cover" />
-                    ) : (
-                      <Text style={styles.avatarInitial}>{item.trainer.name[0]}</Text>
-                    )}
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.trainerName} numberOfLines={1}>
-                        {item.trainer.name}
-                      </Text>
-                      {item.trainer.isKYCApproved && (
-                        <Ionicons name="shield-checkmark" size={13} color={COLORS.primary} />
-                      )}
-                    </View>
-                    <Text style={styles.trainerMeta}>
-                      {item.trainer.city} · {item.totalSessions}+ workouts · {item.rating.toFixed(1)} rating
-                    </Text>
-                  </View>
-
-                  <View style={styles.scoreBadge}>
-                    <Text style={styles.scoreVal}>{item.score}</Text>
-                    <Text style={styles.scoreLabel}>pts</Text>
-                  </View>
-                </TouchableOpacity>
+            <View style={{ gap: 8 }}>
+              {rest.map((r, i) => (
+                <Animated.View key={r.trainer.id} entering={FadeInDown.delay(Math.min(i, 8) * 40)}>
+                  <PressableScale onPress={() => open(r)} accessibilityLabel={`Rank ${r.rank}, ${r.trainer.name}`}>
+                    <Glass radius={T.radius.lg} style={[styles.row, r.trainer.id === trainerProfile?.id && styles.rowMine]}>
+                      <Text style={styles.rank}>{r.rank}</Text>
+                      <Avatar uri={r.trainer.profilePhoto} name={r.trainer.name} size={42} radius={21} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={type.headline} numberOfLines={1}>{r.trainer.name}</Text>
+                        <Text style={type.caption}>{r.trainer.city} · {r.totalSessions} sessions · {r.rating ? `${r.rating.toFixed(1)}★` : 'New'}</Text>
+                      </View>
+                      <Text style={styles.score}>{r.score}</Text>
+                    </Glass>
+                  </PressableScale>
+                </Animated.View>
               ))}
             </View>
-        </>
-
-        <View style={{ height: 40 }} />
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
 }
 
-const PodiumAvatar = ({
-  item,
-  rank,
-  medal,
-  color,
-  height,
-  isFirst = false,
-}: {
-  item: RankedTrainer;
-  rank: number;
-  medal: string;
-  color: string;
-  height: number;
-  isFirst?: boolean;
-}) => (
-  <TouchableOpacity
-    style={[styles.podiumCol, isFirst && { marginTop: -16 }]}
-    onPress={() => router.push(`/trainer/${item.trainer.id}`)}
-    activeOpacity={0.85}
-  >
-    <View style={styles.avatarMedalWrap}>
-      <View style={[styles.podiumAvatar, { borderColor: color }]}>
-        {item.trainer.profilePhoto ? (
-          <Image source={{ uri: item.trainer.profilePhoto }} style={styles.avatarImg} contentFit="cover" />
-        ) : (
-          <Text style={styles.podiumInitials}>{item.trainer.name[0]}</Text>
-        )}
-      </View>
-      <View style={styles.medalPill}>
-        <Text style={styles.medalText}>{medal}</Text>
-      </View>
-    </View>
-
-    <Text style={styles.podiumName} numberOfLines={1}>
-      {item.trainer.name.split(' ')[0]}
-    </Text>
-    <Text style={styles.podiumCity}>{item.trainer.city}</Text>
-
-    {/* Pillar */}
-    <View style={[styles.podiumPillar, { height, borderColor: `${color}40` }]}>
-      <Text style={[styles.podiumRankNum, { color }]}>#{rank}</Text>
-      <Text style={styles.podiumScore}>{item.score} pts</Text>
-    </View>
-  </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
-    backgroundColor: COLORS.card,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: 12,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F3F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textPrimary },
-  headerSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 1 },
-
-  // Audience Tabs
-  audienceTabText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  audienceTabTextActive: { color: COLORS.onColor, fontWeight: '800' },
-
-  scrollBody: { paddingHorizontal: 16, paddingTop: 6, gap: 14 },
-
-  // Filter Section
-  filterSection: { gap: 10 },
-  scopePillContainer: { flexDirection: 'row', gap: 10 },
-  scopePill: {
-    flex: 1,
-    backgroundColor: COLORS.card,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-  },
-  scopePillActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: `${COLORS.primary}08`,
-  },
-  scopePillText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  scopePillTextActive: { color: COLORS.primary, fontWeight: '800' },
-
-  // Mode Chips
-  modeTabsRow: { flexDirection: 'row', gap: 8 },
-  modeChip: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: COLORS.card,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  modeChipActive: { backgroundColor: COLORS.secondary, borderColor: COLORS.secondary },
-  modeChipText: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
-  modeChipTextActive: { color: COLORS.onColor },
-
-  // Podium
-  podiumContainer: {
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    gap: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  podiumTitle: { fontSize: 12, fontWeight: '900', color: '#FFD700', letterSpacing: 1 },
-  podiumSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 12 },
-  podiumRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', width: '100%', gap: 12 },
-  podiumCol: { alignItems: 'center', flex: 1 },
-  avatarMedalWrap: { position: 'relative' },
-  podiumAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    backgroundColor: '#2A2A40',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  podiumInitials: { color: COLORS.onColor, fontSize: 22, fontWeight: '800' },
-  medalPill: {
-    position: 'absolute',
-    bottom: -6,
-    alignSelf: 'center',
-    backgroundColor: '#000',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
-  },
-  medalText: { fontSize: 12 },
-  podiumName: { color: COLORS.onColor, fontSize: 13, fontWeight: '800', marginTop: 10 },
-  podiumCity: { color: 'rgba(255,255,255,0.6)', fontSize: 10, marginBottom: 8 },
-  podiumPillar: {
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 8,
-    gap: 2,
-  },
-  podiumRankNum: { fontSize: 20, fontWeight: '900' },
-  podiumScore: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600' },
-
-  // List Card
-  listCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 16,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  listHeaderTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 6 },
-  rankRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: 12,
-  },
-  rankNumberBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F3F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rankNumberBoxTop: { backgroundColor: COLORS.primary },
-  rankNumberText: { fontSize: 12, fontWeight: '800', color: COLORS.textPrimary },
-  trainerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarInitial: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
-  trainerName: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
-  trainerMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  scoreBadge: {
-    alignItems: 'flex-end',
-    backgroundColor: `${COLORS.primary}10`,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  scoreVal: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
-  scoreLabel: { fontSize: 9, color: COLORS.primary, fontWeight: '600', marginTop: -2 },
-
-  // Client Streak
-  clientStreakHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  fireIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: `${COLORS.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clientStreakSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, lineHeight: 16 },
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF0EA',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  streakText: { fontSize: 13, fontWeight: '800', color: '#E55A25' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
+  body: { padding: 20, gap: 16, paddingBottom: 40 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  vsep: { width: 1, height: 22, backgroundColor: T.glassBorder, marginHorizontal: 2 },
+  mine: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: T.radius.lg },
+  mineText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  empty: { alignItems: 'center', padding: 24 },
+  podiumCard: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', paddingTop: 34, paddingBottom: 16, paddingHorizontal: 8 },
+  podium: { alignItems: 'center', gap: 4, width: 96 },
+  medalRing: { borderWidth: 3, borderRadius: 999, padding: 3 },
+  medal: { marginTop: -14, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: T.bg },
+  medalText: { color: '#1a1a1a', fontSize: 12, fontWeight: '900' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  rowMine: { borderColor: T.accent, borderWidth: 1.5 },
+  rank: { color: T.text3, fontSize: 16, fontWeight: '800', width: 24, textAlign: 'center' },
+  score: { color: T.text, fontSize: 15, fontWeight: '800' },
 });
