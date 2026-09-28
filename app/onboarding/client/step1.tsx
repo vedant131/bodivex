@@ -18,6 +18,7 @@ import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { Gender } from '../../../types/user';
 import { CityPicker } from '../../../components/shared/CityPicker';
+import { SwitchAccountLink } from '../../../components/shared/SwitchAccountLink';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
 
 const TOTAL_STEPS = 7;
@@ -65,6 +66,7 @@ export default function ClientStep1() {
   return (
     <SafeAreaView style={styles.container}>
       <OnboardingProgress current={1} total={TOTAL_STEPS} />
+      <SwitchAccountLink />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Tell us about yourself</Text>

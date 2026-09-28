@@ -39,6 +39,19 @@ service cloud.firestore {
         && incoming().totalSessions == 0;
       allow update: if isUser(uid)
         && !changed().hasAny(['isKYCApproved', 'kycStatus', 'rating', 'totalReviews', 'totalSessions', 'userId']);
+
+      // Slot locks (doc id YYYY-MM-DD-HH). Create-only: a taken slot can't be re-taken.
+      // Public knowledge is just "this hour is busy".
+      match /slots/{slotId} {
+        function sessionAfter() { return getAfter(/databases/$(database)/documents/sessions/$(incoming().sessionId)).data; }
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && incoming().keys().hasOnly(['sessionId', 'date', 'createdAt'])
+          && sessionAfter().clientId == request.auth.uid
+          && sessionAfter().trainerId == uid
+          && sessionAfter().slotKey == slotId;
+        allow delete: if isUser(uid);
+      }
     }
 
     // ── Sessions (booking requests)

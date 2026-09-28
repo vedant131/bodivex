@@ -7,7 +7,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, addDoc, updateDoc, getDocs,
-  collection, query, where, serverTimestamp, setLogLevel,
+  collection, query, where, serverTimestamp, setLogLevel, writeBatch, deleteDoc,
 } from 'firebase/firestore';
 
 setLogLevel('silent'); // expected permission-denied errors are asserted below
@@ -68,12 +68,37 @@ const chatRef = await addDoc(collection(client.db, 'chats'), {
   unreadCount: { [client.uid]: 0, [trainer.uid]: 0 }, isUnlocked: false,
   createdAt: serverTimestamp(), lastMessageAt: serverTimestamp(),
 });
-const sessionRef = await addDoc(collection(client.db, 'sessions'), {
-  clientId: client.uid, trainerId: trainer.uid, clientName: 'Test Client', trainerName: 'Arjun Sharma',
-  type: 'online', status: 'pending', scheduledAt: new Date(Date.now() + 86400000), durationMins: 60,
-  price: 499, chatId: chatRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-});
-ok('client sent booking request');
+// Same shape as createBooking(): session + slot lock in one batch
+const bookSlot = async (who, key) => {
+  const ref = doc(collection(who.db, 'sessions'));
+  const batch = writeBatch(who.db);
+  batch.set(ref, {
+    clientId: who.uid, trainerId: trainer.uid, clientName: 'Test', trainerName: 'Arjun Sharma',
+    type: 'online', status: 'pending', scheduledAt: new Date(Date.now() + 86400000), durationMins: 60,
+    slotKey: key, price: 499, chatId: chatRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+  batch.set(doc(who.db, 'trainers', trainer.uid, 'slots', key), {
+    sessionId: ref.id, date: key.slice(0, 10), createdAt: serverTimestamp(),
+  });
+  await batch.commit();
+  return ref;
+};
+const slot = `2099-01-01-${String(Date.now() % 15 + 6).padStart(2, '0')}-${Date.now()}`; // unique per run
+const sessionRef = await bookSlot(client, slot);
+ok('client booked a slot');
+const rival = await as(`+9166${Date.now().toString().slice(-8)}`, { create: true });
+await denied(bookSlot(rival, slot), 'second client double-booking the same slot');
+await denied(deleteDoc(doc(rival.db, 'trainers', trainer.uid, 'slots', slot)), "client deleting another's slot lock");
+
+// Trainer declines a different booking → slot is freed and can be re-booked
+const slot2 = slot + 'b';
+const declined = await bookSlot(rival, slot2);
+const b = writeBatch(trainer.db);
+b.update(doc(trainer.db, 'sessions', declined.id), { status: 'cancelled', cancelReason: 'busy', updatedAt: serverTimestamp() });
+b.delete(doc(trainer.db, 'trainers', trainer.uid, 'slots', slot2));
+await b.commit();
+await bookSlot(client, slot2);
+ok('declined slot freed and re-booked');
 await denied(addDoc(collection(client.db, 'sessions'), {
   clientId: client.uid, trainerId: newTrainer.uid, status: 'pending',
 }), 'booking an unapproved trainer');
@@ -113,6 +138,6 @@ await denied(updateDoc(doc(client.db, 'qa', qa.id), { answer: 'fake answer' }), 
 await updateDoc(doc(trainer.db, 'qa', qa.id), { answer: 'Yes!', answeredAt: serverTimestamp() });
 ok('trainer answered question');
 
-await Promise.all([client, trainer, newTrainer].map((p) => deleteApp(p.app)));
+await Promise.all([client, trainer, newTrainer, rival].map((p) => deleteApp(p.app)));
 console.log('\nAll checks passed.');
 process.exit(0);

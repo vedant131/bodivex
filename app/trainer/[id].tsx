@@ -522,7 +522,8 @@ export default function TrainerProfileScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Floating Bottom Booking Bar — Full Width, Instant Booking */}
+      {/* Booking bar — clients only (trainers can browse other coaches but not book) */}
+      {user?.role === 'client' && (
       <SafeAreaView edges={['bottom']} style={styles.bottomBarWrap}>
         <View style={styles.bottomBarContent}>
           <TouchableOpacity
@@ -541,6 +542,7 @@ export default function TrainerProfileScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      )}
 
       {/* Public Ask Question Modal with KeyboardAvoidingView */}
       <Modal visible={showAskModal} transparent animationType="slide" onRequestClose={() => setShowAskModal(false)}>

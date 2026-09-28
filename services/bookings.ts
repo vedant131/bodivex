@@ -11,11 +11,13 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
 import { Session, SessionStatus, BookingRequest, ClientSummary } from '../types/session';
 import { TrainerProfile } from '../types/trainer';
 import { getOrCreateChat, unlockChat } from './chat';
+import { slotKey, dateKey } from './slots';
 
 const toSession = (id: string, data: any): Session => ({
   id,
@@ -35,6 +37,8 @@ export const createBooking = async (
   // Chat stays locked until the trainer accepts
   const chatId = await getOrCreateChat({ id: clientId, name: clientName }, { id: trainer.id, name: trainer.name });
 
+  const key = slotKey(request.scheduledAt);
+  const sessionRef = doc(collection(db, COLLECTIONS.SESSIONS));
   const sessionData: Omit<Session, 'id' | 'createdAt' | 'updatedAt'> = {
     clientId,
     trainerId: trainer.id,
@@ -45,16 +49,27 @@ export const createBooking = async (
     status: 'pending' as SessionStatus,
     scheduledAt: request.scheduledAt,
     durationMins: request.durationMins,
+    slotKey: key,
     price: request.price,
     chatId,
   };
 
-  const ref = await addDoc(collection(db, COLLECTIONS.SESSIONS), {
-    ...sessionData,
+  // The slot lock can only be created once (see firestore.rules), so two clients
+  // tapping the same slot can't both succeed.
+  const batch = writeBatch(db);
+  batch.set(sessionRef, { ...sessionData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  batch.set(doc(db, COLLECTIONS.TRAINERS, trainer.id, 'slots', key), {
+    sessionId: sessionRef.id,
+    date: dateKey(request.scheduledAt),
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  try {
+    await batch.commit();
+  } catch (e: any) {
+    if (e.code === 'permission-denied') throw new Error('Sorry, that slot was just booked. Please pick another time.');
+    throw e;
+  }
+  return sessionRef.id;
 };
 
 export const trainerAcceptSession = async (sessionId: string): Promise<void> => {
@@ -79,11 +94,17 @@ export const trainerRejectSession = async (
   reason?: string
 ): Promise<void> => {
   const ref = doc(db, COLLECTIONS.SESSIONS, sessionId);
-  await updateDoc(ref, {
+  const snap = await getDoc(ref);
+  const batch = writeBatch(db);
+  batch.update(ref, {
     status: 'cancelled',
     cancelReason: reason ?? 'Declined by trainer',
     updatedAt: serverTimestamp(),
   });
+  // Free the slot for other clients
+  const data = snap.data();
+  if (data?.slotKey) batch.delete(doc(db, COLLECTIONS.TRAINERS, data.trainerId, 'slots', data.slotKey));
+  await batch.commit();
 };
 
 export const clientCompleteSession = async (

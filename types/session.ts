@@ -20,6 +20,7 @@ export interface Session {
   scheduledAt: Date;
   endedAt?: Date;
   durationMins: number;
+  slotKey: string;             // YYYY-MM-DD-HH, doc id of the trainer's slot lock
   price: number;               // Trainer's quoted price, paid directly to trainer
   chatId?: string;
   videoCallRoomId?: string;

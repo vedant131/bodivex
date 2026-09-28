@@ -1,32 +1,68 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator, Platform
+  StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { createBooking } from '../../services/bookings';
+import {
+  nextDays, slotsForDay, slotKey, dateKey, isBookable, slotPeriod, getBookedSlotKeys,
+} from '../../services/slots';
 import { COLORS } from '../../constants/colors';
+import { CONFIG } from '../../constants/config';
 import { SessionType } from '../../types/session';
 
-const DURATIONS = [30, 45, 60, 90, 120];
+const PERIODS = ['Morning', 'Afternoon', 'Evening'] as const;
+
+const dayLabel = (d: Date, i: number) =>
+  i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'short' });
+
+const timeLabel = (d: Date) =>
+  d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 
 export default function BookingScreen() {
-  const { selectedTrainer: trainer } = useTrainerStore();
+  const { trainerId } = useLocalSearchParams<{ trainerId: string }>();
+  const { selectedTrainer, fetchTrainerById } = useTrainerStore();
+  const trainer = selectedTrainer?.id === trainerId ? selectedTrainer : null;
   const { user } = useAuthStore();
 
-  const [sessionType, setSessionType] = useState<SessionType>(
-    trainer?.pricingOnline ? 'online' : 'offline'
-  );
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [durationMins, setDurationMins] = useState(60);
-  const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    if (!trainer && trainerId) fetchTrainerById(trainerId);
+  }, [trainerId]);
 
-  if (!trainer) {
+  const [sessionType, setSessionType] = useState<SessionType>('online');
+  useEffect(() => {
+    if (trainer && !trainer.pricingOnline) setSessionType('offline');
+  }, [trainer?.id]);
+  const days = useMemo(() => nextDays(), []);
+  const [day, setDay] = useState(days[0]);
+  const [slot, setSlot] = useState<Date | null>(null);
+  const [booked, setBooked] = useState<Set<string>>(new Set());
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [isBooking, setIsBooking] = useState(false);
+
+  const loadBooked = () => {
+    if (!trainer) return;
+    setLoadingSlots(true);
+    getBookedSlotKeys(trainer.id)
+      .then(setBooked)
+      .catch((e) => console.warn('Could not load booked slots', e))
+      .finally(() => setLoadingSlots(false));
+  };
+  useEffect(loadBooked, [trainer?.id]);
+
+  // Open on the first day that still has a free slot (e.g. tomorrow, late in the evening)
+  useEffect(() => {
+    if (loadingSlots) return;
+    const open = (d: Date) => slotsForDay(d).some((s) => isBookable(s) && !booked.has(slotKey(s)));
+    if (!open(day)) setDay(days.find(open) ?? day);
+  }, [loadingSlots, booked]);
+
+  if (!trainer || user?.role !== 'client') {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={COLORS.primary} />
@@ -34,255 +70,258 @@ export default function BookingScreen() {
     );
   }
 
-  const rate = sessionType === 'online'
-    ? (trainer.pricingOnline ?? 0)
-    : (trainer.pricingOffline ?? 0);
-  const price = Math.round((rate / 60) * durationMins);
-
-  // Android has no combined datetime picker: pick date, then time.
-  const openAndroidPicker = () => {
-    DateTimePickerAndroid.open({
-      value: selectedDate,
-      mode: 'date',
-      minimumDate: new Date(),
-      onChange: (e, date) => {
-        if (e.type !== 'set' || !date) return;
-        DateTimePickerAndroid.open({
-          value: date,
-          mode: 'time',
-          onChange: (e2, time) => {
-            if (e2.type === 'set' && time) setSelectedDate(time);
-          },
-        });
-      },
-    });
-  };
+  const offersBoth = !!trainer.pricingOnline && !!trainer.pricingOffline;
+  const price = (sessionType === 'online' ? trainer.pricingOnline : trainer.pricingOffline) ?? 0;
+  const daySlots = slotsForDay(day);
+  const available = (s: Date) => isBookable(s) && !booked.has(slotKey(s));
 
   const handleBook = async () => {
-    if (!user) return;
-    if (selectedDate.getTime() < Date.now()) {
-      Alert.alert('Pick a future time');
-      return;
-    }
-    setIsLoading(true);
+    if (!slot) return;
+    setIsBooking(true);
     try {
       await createBooking(
-        { trainerId: trainer.id, type: sessionType, scheduledAt: selectedDate, durationMins, price },
+        {
+          trainerId: trainer.id,
+          type: sessionType,
+          scheduledAt: slot,
+          durationMins: CONFIG.slots.sessionMins,
+          price,
+        },
         user.id,
         user.name,
         trainer
       );
       Alert.alert(
         'Request sent',
-        `${trainer.name} will confirm your session. Chat unlocks once they accept.`,
+        `${trainer.name} will confirm your ${timeLabel(slot)} slot. Chat unlocks once they accept.`,
         [{ text: 'OK', onPress: () => router.replace('/(client)/sessions') }]
       );
     } catch (e: any) {
-      Alert.alert('Booking failed', e.message);
+      Alert.alert('Could not book', e.message);
+      setSlot(null);
+      loadBooked();
     } finally {
-      setIsLoading(false);
+      setIsBooking(false);
     }
   };
 
-  const dateLabel = selectedDate.toLocaleString('en-IN', {
-    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-  });
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Book Session</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Book a session</Text>
+          <Text style={styles.headerSub}>with {trainer.name} · {CONFIG.slots.sessionMins} min</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.trainerRow}>
-          <View style={styles.trainerAvatar}>
-            <Text style={styles.trainerAvatarText}>{trainer.name[0]}</Text>
+        {offersBoth && (
+          <View style={styles.segment}>
+            {(['online', 'offline'] as SessionType[]).map((type) => {
+              const active = sessionType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+                  onPress={() => setSessionType(type)}
+                  accessibilityState={{ selected: active }}
+                >
+                  <Ionicons
+                    name={type === 'online' ? 'videocam-outline' : 'barbell-outline'}
+                    size={16}
+                    color={active ? COLORS.textPrimary : COLORS.textSecondary}
+                  />
+                  <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                    {type === 'online' ? 'Online' : 'In person'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.trainerName}>{trainer.name}</Text>
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={13} color="#FFB300" />
-              <Text style={styles.ratingText}>{trainer.rating.toFixed(1)} · {trainer.experience} yrs exp</Text>
-            </View>
-          </View>
-        </View>
+        )}
 
-        <Text style={styles.sectionLabel}>Session Type</Text>
-        <View style={styles.typeRow}>
-          {(['online', 'offline'] as SessionType[]).map((type) => {
-            const typeRate = type === 'online' ? trainer.pricingOnline : trainer.pricingOffline;
-            const active = sessionType === type;
+        <Text style={styles.sectionLabel}>When should the session happen?</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
+          {days.map((d, i) => {
+            const active = dateKey(d) === dateKey(day);
+            const hasSlots = slotsForDay(d).some(available);
             return (
               <TouchableOpacity
-                key={type}
-                style={[styles.typeBtn, active && styles.typeBtnActive, !typeRate && styles.typeBtnDisabled]}
-                onPress={() => setSessionType(type)}
-                disabled={!typeRate}
+                key={dateKey(d)}
+                style={[styles.dayChip, active && styles.chipActive, !hasSlots && styles.chipDisabled]}
+                onPress={() => { setDay(d); setSlot(null); }}
+                disabled={!hasSlots}
+                accessibilityState={{ selected: active, disabled: !hasSlots }}
               >
-                <Ionicons
-                  name={type === 'online' ? 'videocam' : 'fitness'}
-                  size={22}
-                  color={active ? COLORS.white : COLORS.textSecondary}
-                />
-                <Text style={[styles.typeBtnText, active && styles.typeBtnTextActive]}>
-                  {type === 'online' ? 'Online' : 'In person'}
-                </Text>
-                <Text style={[styles.typeBtnPrice, active && { color: 'rgba(255,255,255,0.85)' }]}>
-                  {typeRate ? `₹${typeRate}/hr` : 'N/A'}
-                </Text>
+                <Text style={[styles.dayName, active && styles.chipTextActive]}>{dayLabel(d, i)}</Text>
+                <Text style={[styles.dayNum, active && styles.chipTextActive]}>{d.getDate()}</Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
-        <Text style={styles.sectionLabel}>Duration</Text>
-        <View style={styles.durationRow}>
-          {DURATIONS.map((d) => (
-            <TouchableOpacity
-              key={d}
-              style={[styles.durationBtn, durationMins === d && styles.durationBtnActive]}
-              onPress={() => setDurationMins(d)}
-            >
-              <Text style={[styles.durationText, durationMins === d && styles.durationTextActive]}>
-                {d >= 60 ? `${d / 60}hr` : `${d}m`}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionLabel}>Date & Time</Text>
-        {Platform.OS === 'ios' ? (
-          <View style={styles.datePickerContainer}>
-            <DateTimePicker
-              value={selectedDate}
-              mode="datetime"
-              minimumDate={new Date()}
-              onChange={(_, date) => date && setSelectedDate(date)}
-              style={{ alignSelf: 'flex-start' }}
-            />
-          </View>
+        <Text style={styles.sectionLabel}>Select start time</Text>
+        {loadingSlots ? (
+          <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 24 }} />
         ) : (
-          <TouchableOpacity style={styles.datePickerContainer} onPress={openAndroidPicker}>
-            <Text style={styles.dateText}>{dateLabel}</Text>
-          </TouchableOpacity>
+          PERIODS.map((period) => {
+            const list = daySlots.filter((s) => slotPeriod(s) === period);
+            if (!list.some(available)) return null;
+            return (
+              <View key={period} style={styles.periodBlock}>
+                <Text style={styles.periodLabel}>{period}</Text>
+                <View style={styles.slotGrid}>
+                  {list.map((s) => {
+                    const ok = available(s);
+                    const active = slot?.getTime() === s.getTime();
+                    return (
+                      <TouchableOpacity
+                        key={s.getTime()}
+                        style={[styles.slotChip, active && styles.chipActive, !ok && styles.chipDisabled]}
+                        onPress={() => setSlot(s)}
+                        disabled={!ok}
+                        accessibilityState={{ selected: active, disabled: !ok }}
+                      >
+                        <Text
+                          style={[
+                            styles.slotText,
+                            active && styles.chipTextActive,
+                            !ok && styles.slotTextDisabled,
+                          ]}
+                        >
+                          {timeLabel(s)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })
         )}
+        {!loadingSlots && !daySlots.some(available) && (
+          <Text style={styles.empty}>No slots left on this day. Try another date.</Text>
+        )}
+      </ScrollView>
 
-        <View style={styles.priceCard}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>{durationMins} min @ ₹{rate}/hr</Text>
-            <Text style={styles.priceValue}>₹{price}</Text>
-          </View>
-          <Text style={styles.payNote}>
-            No payment in the app. Pay {trainer.name.split(' ')[0]} directly after they confirm.
-          </Text>
+      <View style={styles.footer}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.price}>₹{price}</Text>
+          <Text style={styles.payNote}>Pay the trainer directly</Text>
         </View>
-
-        <TouchableOpacity style={styles.bookBtn} onPress={handleBook} disabled={isLoading}>
-          {isLoading ? (
+        <TouchableOpacity
+          style={[styles.bookBtn, (!slot || isBooking) && styles.bookBtnDisabled]}
+          onPress={handleBook}
+          disabled={!slot || isBooking}
+        >
+          {isBooking ? (
             <ActivityIndicator color={COLORS.white} />
           ) : (
-            <Text style={styles.bookBtnText}>Send Booking Request</Text>
+            <Text style={styles.bookBtnText}>
+              {slot ? `Request ${timeLabel(slot)}` : 'Pick a time'}
+            </Text>
           )}
         </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.white },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
-  scroll: { padding: 20, gap: 14 },
-  trainerRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: COLORS.white,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
   },
-  trainerAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
+  headerSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  scroll: { padding: 16, paddingBottom: 32 },
+
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
   },
-  trainerAvatarText: { color: COLORS.white, fontSize: 20, fontWeight: '700' },
-  trainerName: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  ratingText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
-  sectionLabel: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginTop: 4 },
-  typeRow: { flexDirection: 'row', gap: 12 },
-  typeBtn: {
+  segmentBtn: {
     flex: 1,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
+    paddingVertical: 10,
+    borderRadius: 9,
   },
-  typeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  typeBtnDisabled: { opacity: 0.4 },
-  typeBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  typeBtnTextActive: { color: COLORS.white },
-  typeBtnPrice: { fontSize: 13, color: COLORS.textSecondary },
-  durationRow: { flexDirection: 'row', gap: 8 },
-  durationBtn: {
-    flex: 1,
-    paddingVertical: 12,
+  segmentBtnActive: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
+  segmentText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  segmentTextActive: { color: COLORS.textPrimary },
+
+  sectionLabel: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
+
+  dayRow: { gap: 10, paddingBottom: 24 },
+  dayChip: {
+    width: 68,
+    paddingVertical: 10,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-  },
-  durationBtnActive: { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}12` },
-  durationText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
-  durationTextActive: { color: COLORS.primary },
-  datePickerContainer: { backgroundColor: COLORS.white, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: COLORS.border },
-  dateText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, paddingVertical: 4 },
-  priceCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 18,
-    gap: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+    alignItems: 'center',
+    gap: 2,
   },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  priceLabel: { fontSize: 14, color: COLORS.textSecondary },
-  priceValue: { fontSize: 20, fontWeight: '900', color: COLORS.primary },
-  payNote: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
+  dayName: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  dayNum: { fontSize: 18, color: COLORS.textPrimary, fontWeight: '700' },
+
+  periodBlock: { marginBottom: 18 },
+  periodLabel: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600', marginBottom: 8 },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  slotChip: {
+    width: '30.5%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  slotText: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
+  slotTextDisabled: { textDecorationLine: 'line-through' },
+
+  chipActive: { backgroundColor: COLORS.secondary, borderColor: COLORS.secondary },
+  chipTextActive: { color: COLORS.white },
+  chipDisabled: { opacity: 0.35 },
+
+  empty: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', marginTop: 12 },
+
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    backgroundColor: COLORS.white,
+  },
+  price: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary },
+  payNote: { fontSize: 12, color: COLORS.textSecondary },
   bookBtn: {
     backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    height: 58,
+    borderRadius: 12,
+    height: 50,
+    paddingHorizontal: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    minWidth: 160,
   },
-  bookBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
+  bookBtnDisabled: { opacity: 0.4 },
+  bookBtnText: { color: COLORS.white, fontSize: 15, fontWeight: '700' },
 });

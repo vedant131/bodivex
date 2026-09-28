@@ -71,6 +71,13 @@ export default function OTPScreen() {
         session = { user, clientProfile: null, trainerProfile: null };
       }
       setSession(session);
+      const actualRole = session.user!.role;
+      if (role && actualRole !== role) {
+        Alert.alert(
+          `Registered as a ${actualRole === 'trainer' ? 'coach' : 'client'}`,
+          `This number already has a ${actualRole === 'trainer' ? 'coach' : 'client'} account, so you're signed in as one. Use a different number for a ${role === 'trainer' ? 'coach' : 'client'} account.`
+        );
+      }
       router.replace(homeRouteFor(session));
     } catch (e: any) {
       Alert.alert('Sign-in failed', e.message);

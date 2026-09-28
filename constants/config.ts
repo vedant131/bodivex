@@ -25,6 +25,15 @@ export const CONFIG = {
   maxVideoIntroSeconds: 60,
   sessionBookingWindowMins: 30, // trainer must accept within 30 mins
 
+  // Slot booking (Urban Company style): 1-hour slots, next 7 days
+  slots: {
+    firstHour: 6,       // 6 AM
+    lastHour: 20,       // last slot starts 8 PM
+    sessionMins: 60,
+    daysAhead: 7,
+    minLeadMins: 60,    // can't book a slot starting within the next hour
+  },
+
   // Firebase — `demo-` project id works only with the local emulator.
   // Replace with the real config from the Firebase Console before launch.
   firebase: {

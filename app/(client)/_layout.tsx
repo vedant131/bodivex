@@ -1,8 +1,12 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
+import { useAuthStore } from '../../stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 
 export default function ClientLayout() {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role && role !== 'client') return <Redirect href="/(trainer)/dashboard" />;
+
   return (
     <Tabs
       screenOptions={{

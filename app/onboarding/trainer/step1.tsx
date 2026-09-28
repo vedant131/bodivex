@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { CityPicker } from '../../../components/shared/CityPicker';
+import { SwitchAccountLink } from '../../../components/shared/SwitchAccountLink';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
 
 const TOTAL_STEPS = 5;
@@ -58,6 +59,7 @@ export default function TrainerStep1() {
   return (
     <SafeAreaView style={styles.container}>
       <OnboardingProgress current={1} total={TOTAL_STEPS} />
+      <SwitchAccountLink />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Trainer Profile</Text>

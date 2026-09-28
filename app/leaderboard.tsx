@@ -43,7 +43,8 @@ export default function LeaderboardScreen() {
   );
 
   const topThree = rankedTrainers.slice(0, 3);
-  const restTrainers = rankedTrainers.slice(3);
+  // Podium needs 3; with fewer coaches (early days in a city) list everyone instead
+  const restTrainers = topThree.length >= 3 ? rankedTrainers.slice(3) : rankedTrainers;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
