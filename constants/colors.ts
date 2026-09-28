@@ -20,18 +20,17 @@ export const COLORS = {
   danger: T.danger,
   dangerMuted: 'rgba(255,69,58,0.16)',
 
-  // "white" is used both as card background and as text on accent buttons;
-  // a dark card colour keeps both readable (dark on pink ≈ 5:1).
-  surface: '#15151C',
-  background: T.bg,
-  card: '#15151C',
+  surface: '#15151C',            // solid: modals, sheets
+  background: 'transparent',     // the root Backdrop glow shows through every screen
+  card: 'rgba(255,255,255,0.06)', // frosted-glass look for plain cards
+  onColor: '#FFFFFF',            // text/icons on accent or dark
   border: 'rgba(255,255,255,0.10)',
   borderLight: 'rgba(255,255,255,0.06)',
 
   textPrimary: T.text,
   textSecondary: T.text2,
   textMuted: T.text3,
-  white: '#15151C',
+  white: '#FFFFFF',
   black: '#000000',
   overlay: 'rgba(0,0,0,0.7)',
 

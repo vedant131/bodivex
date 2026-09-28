@@ -14,6 +14,7 @@ import { subscribeToMessages, sendMessage, markAsRead, setTyping, subscribeToTyp
 import { useAuthStore } from '../../stores/authStore';
 import { COLORS } from '../../constants/colors';
 import { Message } from '../../types/chat';
+import { Screen } from '../../components/ui/Screen';
 
 let AudioModule: any = null;
 try {
@@ -168,11 +169,11 @@ export default function ChatScreen() {
             )}
             {item.type === 'voice' && (
               <View style={styles.voiceMessage}>
-                <Ionicons name="mic" size={18} color={isMe ? COLORS.white : COLORS.primary} />
+                <Ionicons name="mic" size={18} color={isMe ? COLORS.onColor : COLORS.primary} />
                 <Text style={[styles.voiceDuration, isMe && { color: 'rgba(255,255,255,0.8)' }]}>
                   {item.voiceDurationSecs ?? 0}s voice note
                 </Text>
-                <Ionicons name="play-circle" size={22} color={isMe ? COLORS.white : COLORS.primary} />
+                <Ionicons name="play-circle" size={22} color={isMe ? COLORS.onColor : COLORS.primary} />
               </View>
             )}
             <Text style={[styles.timestamp, isMe && styles.timestampMe]}>
@@ -192,7 +193,7 @@ export default function ChatScreen() {
   }, [messages, user?.id]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <Screen preset="calm" edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -254,7 +255,7 @@ export default function ChatScreen() {
           />
           {input.trim() ? (
             <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-              <Ionicons name="send" size={20} color={COLORS.white} />
+              <Ionicons name="send" size={20} color={COLORS.onColor} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -273,7 +274,7 @@ export default function ChatScreen() {
           )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: 12,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
   },
-  headerAvatarText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  headerAvatarText: { color: COLORS.onColor, fontSize: 16, fontWeight: '700' },
   headerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   typingText: { fontSize: 12, color: COLORS.primary, fontStyle: 'italic' },
   onlineText: { fontSize: 12, color: COLORS.success },
@@ -307,12 +308,12 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginBottom: 4 },
   bubbleRowMe: { justifyContent: 'flex-end' },
   avatarSmall: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarSmallText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
+  avatarSmallText: { color: COLORS.onColor, fontSize: 12, fontWeight: '700' },
   bubble: { maxWidth: '78%', padding: 12, borderRadius: 18, gap: 4 },
   bubbleMe: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
-  bubbleThem: { backgroundColor: COLORS.white, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: COLORS.border },
+  bubbleThem: { backgroundColor: COLORS.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: COLORS.border },
   bubbleText: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 22 },
-  bubbleTextMe: { color: COLORS.white },
+  bubbleTextMe: { color: COLORS.onColor },
   photoMessage: { width: 200, height: 150, borderRadius: 12 },
   voiceMessage: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   voiceDuration: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 8,
     padding: 10,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.card,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },

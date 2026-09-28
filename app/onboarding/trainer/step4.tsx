@@ -18,8 +18,9 @@ import { createTrainerProfile } from '../../../services/trainers';
 import { updateUserProfile } from '../../../services/auth';
 import { uploadImage } from '../../../services/storage';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
+import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 // Verification is manual for v1: the Bodivex team checks ID + certificates
 // with the trainer, then sets kycStatus = 'approved' in the Firebase console.
@@ -72,7 +73,7 @@ export default function TrainerStep4() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen preset="trainer">
       <OnboardingProgress current={4} total={TOTAL_STEPS} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -95,13 +96,13 @@ export default function TrainerStep4() {
           disabled={isSubmitting}
         >
           {isSubmitting ? (
-            <ActivityIndicator color={COLORS.white} />
+            <ActivityIndicator color={COLORS.onColor} />
           ) : (
             <Text style={styles.nextBtnText}>Submit for Review</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -113,7 +114,7 @@ const Step = ({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, backgroundColor: COLORS.card },
   scroll: { padding: 24, gap: 12 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, marginTop: 4 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 8 },
@@ -135,5 +136,5 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   nextBtnDisabled: { opacity: 0.5 },
-  nextBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  nextBtnText: { color: COLORS.onColor, fontSize: 16, fontWeight: '700' },
 });

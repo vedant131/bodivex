@@ -7,8 +7,9 @@ import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { FitnessLevel } from '../../../types/user';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
+import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 3;
 
 export default function ClientStep2() {
   const { clientProfile, setClientProfile } = useAuthStore();
@@ -34,14 +35,14 @@ export default function ClientStep2() {
     router.push('/onboarding/client/step3');
   };
 
-  const FITNESS_LEVELS: { value: FitnessLevel; label: string; desc: string; emoji: string }[] = [
-    { value: 'beginner', label: 'Beginner', desc: 'Just starting out', emoji: '🌱' },
-    { value: 'intermediate', label: 'Intermediate', desc: 'Training for 6+ months', emoji: '💪' },
-    { value: 'advanced', label: 'Advanced', desc: 'Serious athlete', emoji: '🏆' },
+  const FITNESS_LEVELS: { value: FitnessLevel; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { value: 'beginner', label: 'Beginner', desc: 'Just starting out', icon: 'leaf' },
+    { value: 'intermediate', label: 'Intermediate', desc: 'Training for 6+ months', icon: 'barbell' },
+    { value: 'advanced', label: 'Advanced', desc: 'Serious athlete', icon: 'trophy' },
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen preset="calm">
       <OnboardingProgress current={2} total={TOTAL_STEPS} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -94,7 +95,7 @@ export default function ClientStep2() {
             style={[styles.levelBtn, fitnessLevel === fl.value && styles.levelBtnActive]}
             onPress={() => setFitnessLevel(fl.value)}
           >
-            <Text style={styles.levelEmoji}>{fl.emoji}</Text>
+            <Ionicons name={fl.icon} size={26} color={COLORS.textPrimary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.levelLabel, fitnessLevel === fl.value && styles.levelLabelActive]}>
                 {fl.label}
@@ -117,7 +118,7 @@ export default function ClientStep2() {
             value={goesToGym}
             onValueChange={setGoesToGym}
             trackColor={{ true: COLORS.primary, false: COLORS.border }}
-            thumbColor={COLORS.white}
+            thumbColor={COLORS.onColor}
           />
         </View>
 
@@ -140,15 +141,15 @@ export default function ClientStep2() {
           disabled={!isValid}
         >
           <Text style={styles.nextBtnText}>Next</Text>
-          <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+          <Ionicons name="arrow-forward" size={20} color={COLORS.onColor} />
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, backgroundColor: COLORS.card },
   scroll: { padding: 24, gap: 12 },
   backBtn: { marginBottom: 8 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary },
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
   unitBtn: { paddingHorizontal: 16, paddingVertical: 14, backgroundColor: COLORS.background },
   unitBtnActive: { backgroundColor: COLORS.primary },
   unitText: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary },
-  unitTextActive: { color: COLORS.white },
+  unitTextActive: { color: COLORS.onColor },
   levelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -208,5 +209,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
+  nextBtnText: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
 });

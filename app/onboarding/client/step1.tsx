@@ -20,8 +20,9 @@ import { Gender } from '../../../types/user';
 import { CityPicker } from '../../../components/shared/CityPicker';
 import { SwitchAccountLink } from '../../../components/shared/SwitchAccountLink';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
+import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 3;
 
 export default function ClientStep1() {
   const { clientProfile, setClientProfile } = useAuthStore();
@@ -57,14 +58,14 @@ export default function ClientStep1() {
     router.push('/onboarding/client/step2');
   };
 
-  const GENDERS: { value: Gender; label: string; emoji: string }[] = [
-    { value: 'male', label: 'Male', emoji: '👨' },
-    { value: 'female', label: 'Female', emoji: '👩' },
-    { value: 'prefer_not_to_say', label: 'Prefer not to say', emoji: '🙂' },
+  const GENDERS: { value: Gender; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { value: 'male', label: 'Male', icon: 'man' },
+    { value: 'female', label: 'Female', icon: 'woman' },
+    { value: 'prefer_not_to_say', label: 'Prefer not to say', icon: 'person' },
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen preset="calm">
       <OnboardingProgress current={1} total={TOTAL_STEPS} />
       <SwitchAccountLink />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -116,7 +117,7 @@ export default function ClientStep1() {
                 style={[styles.genderBtn, gender === g.value && styles.genderBtnActive]}
                 onPress={() => setGender(g.value)}
               >
-                <Text style={styles.genderEmoji}>{g.emoji}</Text>
+                <Ionicons name={g.icon} size={26} color={COLORS.textPrimary} />
                 <Text style={[styles.genderText, gender === g.value && styles.genderTextActive]}>
                   {g.label}
                 </Text>
@@ -133,16 +134,16 @@ export default function ClientStep1() {
             disabled={!isValid}
           >
             <Text style={styles.nextBtnText}>Next</Text>
-            <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+            <Ionicons name="arrow-forward" size={20} color={COLORS.onColor} />
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, backgroundColor: COLORS.card },
   scroll: { padding: 24, gap: 12 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, marginTop: 8 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 8 },
@@ -197,5 +198,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
+  nextBtnText: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
 });
