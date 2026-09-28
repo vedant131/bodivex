@@ -1,455 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { format } from 'date-fns';
 import { useAuthStore } from '../../stores/authStore';
-import {
-  subscribeToClientSessions,
-  clientCompleteSession,
-  clientCancelSession,
-} from '../../services/bookings';
-import { COLORS } from '../../constants/colors';
+import { subscribeToClientSessions, clientCompleteSession, clientCancelSession } from '../../services/bookings';
 import { openVideoCall } from '../../services/video';
-import { Session } from '../../types/session';
 import { Screen } from '../../components/ui/Screen';
+import { Glass } from '../../components/ui/Glass';
+import { Button } from '../../components/ui/Button';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Avatar, Chip, IconButton } from '../../components/ui/Bits';
+import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
+import { T, type } from '../../constants/theme';
+import { Session } from '../../types/session';
 
-type FilterTab = 'upcoming' | 'completed' | 'all';
+type Tab = 'upcoming' | 'past';
+
+const STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Waiting for coach', color: T.warning },
+  expired: { label: 'Expired', color: T.text3 },
+  confirmed: { label: 'Confirmed', color: T.ring2 },
+  completed: { label: 'Completed', color: T.ring3 },
+  cancelled: { label: 'Cancelled', color: T.text3 },
+  declined: { label: 'Declined by coach', color: T.danger },
+};
 
 export default function ClientSessionsScreen() {
   const { user } = useAuthStore();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<FilterTab>('upcoming');
-
-  // Rating modal state
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('upcoming');
+  const [rateFor, setRateFor] = useState<Session | null>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
-  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const unsub = subscribeToClientSessions(user.id, (list) => {
+    if (!user) return;
+    return subscribeToClientSessions(user.id, (list) => {
       setSessions(list);
-      setIsLoading(false);
+      setLoading(false);
     });
-    return unsub;
   }, [user?.id]);
 
   const now = Date.now();
-  const isExpired = (s: Session) => s.status === 'pending' && s.scheduledAt.getTime() < now;
-  const filteredSessions = sessions.filter((s) => {
-    if (activeTab === 'upcoming') {
-      return (s.status === 'pending' && !isExpired(s)) || s.status === 'confirmed';
-    }
-    if (activeTab === 'completed') {
-      return s.status === 'completed';
-    }
-    return true;
-  });
+  const statusOf = (s: Session) =>
+    s.status === 'pending' && s.scheduledAt.getTime() < now ? 'expired'
+      : s.status === 'cancelled' && s.cancelReason !== 'Cancelled by client' ? 'declined'
+      : s.status;
 
-  const cancelRequest = (session: Session) =>
-    Alert.alert('Cancel request?', `Your request to ${session.trainerName} will be withdrawn.`, [
+  const list = useMemo(() => {
+    const upcoming = (s: Session) => (s.status === 'pending' && s.scheduledAt.getTime() >= now) || s.status === 'confirmed';
+    return sessions
+      .filter((s) => (tab === 'upcoming' ? upcoming(s) : !upcoming(s)))
+      .sort((a, b) => (tab === 'upcoming' ? 1 : -1) * (a.scheduledAt.getTime() - b.scheduledAt.getTime()));
+  }, [sessions, tab]);
+
+  const cancel = (s: Session) =>
+    Alert.alert('Cancel request?', `Your request to ${s.trainerName} will be withdrawn.`, [
       { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Cancel request',
-        style: 'destructive',
-        onPress: () => clientCancelSession(session).catch((e) => Alert.alert('Error', e.message)),
-      },
+      { text: 'Cancel request', style: 'destructive', onPress: () => clientCancelSession(s).catch((e) => Alert.alert('Error', e.message)) },
     ]);
 
-  const handleConfirmSatisfied = (session: Session) => {
-    setSelectedSession(session);
-    setRating(5);
-    setReview('');
-    setShowRatingModal(true);
-  };
-
-  const submitSatisfaction = async () => {
-    if (!selectedSession) return;
+  const submitRating = async () => {
+    if (!rateFor) return;
+    setSubmitting(true);
     try {
-      await clientCompleteSession(selectedSession.id, rating, review.trim() || undefined);
-      setShowRatingModal(false);
-      Alert.alert('Thanks for the feedback!');
+      await clientCompleteSession(rateFor.id, rating, review.trim() || undefined);
+      setRateFor(null);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Could not save', e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Screen preset="calm" style={{ paddingBottom: 88 }} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Sessions</Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.tabRow}>
-        {(['upcoming', 'completed', 'all'] as FilterTab[]).map((t) => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.tab, activeTab === t && styles.tabActive]}
-            onPress={() => setActiveTab(t)}
-          >
-            <Text style={[styles.tabText, activeTab === t && styles.tabTextActive]}>
-              {t === 'upcoming' ? 'Upcoming' : t === 'completed' ? 'Completed' : 'All Sessions'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+    <Screen preset="calm" edges={['top']}>
+      <View style={styles.head}>
+        <Text style={type.title}>Bookings</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Chip label="Upcoming" active={tab === 'upcoming'} onPress={() => setTab('upcoming')} />
+          <Chip label="Past" active={tab === 'past'} onPress={() => setTab('past')} />
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-        {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
-        ) : filteredSessions.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={56} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>No {activeTab} sessions</Text>
-            <Text style={styles.emptySub}>
-              Browse coaches and book your next workout session.
-            </Text>
-            <TouchableOpacity
-              style={styles.bookBtn}
-              onPress={() => router.push('/(client)/search')}
-            >
-              <Text style={styles.bookBtnText}>Explore Trainers</Text>
-            </TouchableOpacity>
-          </View>
+        {loading ? (
+          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+        ) : list.length === 0 ? (
+          <Glass radius={T.radius.xl} style={styles.empty}>
+            <Ionicons name="calendar-outline" size={30} color={T.text2} />
+            <Text style={type.headline}>{tab === 'upcoming' ? 'Nothing booked yet' : 'No past sessions'}</Text>
+            {tab === 'upcoming' && (
+              <Button title="Find a coach" icon="search" size="md" onPress={() => router.push('/(client)/search')} style={{ marginTop: 8 }} />
+            )}
+          </Glass>
         ) : (
-          filteredSessions.map((session) => {
-            const isConfirmed = session.status === 'confirmed';
-            const isPending = session.status === 'pending';
-            const isCompleted = session.status === 'completed';
-
+          list.map((s) => {
+            const st = STATUS[statusOf(s)];
+            const confirmed = s.status === 'confirmed';
+            const started = s.scheduledAt.getTime() <= now;
             return (
-              <View key={session.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.trainerAvatar}>
-                    {session.trainerPhoto ? (
-                      <Image source={{ uri: session.trainerPhoto }} style={styles.avatarImg} contentFit="cover" />
-                    ) : (
-                      <Text style={styles.avatarText}>{session.trainerName[0]}</Text>
+              <Glass key={s.id} radius={T.radius.xl} style={styles.card}>
+                <View style={styles.top}>
+                  <View style={styles.date}>
+                    <Text style={styles.dateDay}>{s.scheduledAt.toLocaleDateString('en-IN', { weekday: 'short' })}</Text>
+                    <Text style={styles.dateNum}>{s.scheduledAt.getDate()}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={type.headline}>{s.trainerName}</Text>
+                    <Text style={type.caption}>
+                      {s.scheduledAt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {s.type === 'online' ? 'Online' : 'In person'} · ₹{s.price}
+                    </Text>
+                    <View style={styles.status}>
+                      <View style={[styles.dot, { backgroundColor: st.color }]} />
+                      <Text style={[type.caption, { color: st.color }]}>{st.label}</Text>
+                      {s.clientRating ? <Text style={type.caption}> · You rated {s.clientRating}★</Text> : null}
+                    </View>
+                  </View>
+                  <Avatar uri={s.trainerPhoto} name={s.trainerName} size={44} radius={22} />
+                </View>
+
+                {(confirmed || s.status === 'pending') && statusOf(s) !== 'expired' && (
+                  <View style={styles.actions}>
+                    {confirmed && s.chatId && (
+                      <IconButton icon="chatbubble-ellipses" label="Chat" size={42}
+                        onPress={() => router.push({ pathname: '/chat/[id]', params: { id: s.chatId!, name: s.trainerName, photo: s.trainerPhoto } })} />
+                    )}
+                    {confirmed && s.type === 'online' && (
+                      <Button title="Join call" icon="videocam" variant="glass" size="sm" onPress={() => openVideoCall(s.videoCallRoomId)} />
+                    )}
+                    <View style={{ flex: 1 }} />
+                    {confirmed && started && (
+                      <Button title="Done · rate" size="sm" onPress={() => { setRateFor(s); setRating(5); setReview(''); }} />
+                    )}
+                    {s.status === 'pending' && (
+                      <Button title="Cancel request" variant="danger" size="sm" onPress={() => cancel(s)} />
                     )}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.trainerName}>{session.trainerName}</Text>
-                    <Text style={styles.sessionDate}>
-                      {format(new Date(session.scheduledAt), 'EEE, dd MMM yyyy · hh:mm a')}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      isConfirmed && styles.statusConfirmed,
-                      isPending && styles.statusPending,
-                      isCompleted && styles.statusCompleted,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        isConfirmed && { color: COLORS.primary },
-                        isPending && { color: COLORS.warning },
-                        isCompleted && { color: COLORS.success },
-                      ]}
-                    >
-                      {isPending && isExpired(session)
-                        ? 'Expired'
-                        : isPending
-                        ? 'Waiting for coach'
-                        : isConfirmed
-                        ? 'Confirmed'
-                        : isCompleted
-                        ? 'Completed'
-                        : session.cancelReason === 'Cancelled by client'
-                        ? 'Cancelled'
-                        : 'Declined by coach'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Session Meta */}
-                <View style={styles.metaRow}>
-                  <View style={styles.metaItem}>
-                    <Ionicons
-                      name={session.type === 'online' ? 'videocam' : 'barbell'}
-                      size={14}
-                      color={COLORS.textSecondary}
-                    />
-                    <Text style={styles.metaText}>
-                      {session.type === 'online' ? 'Online Video' : 'In-Person Offline'}
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
-                    <Text style={styles.metaText}>{session.durationMins} mins</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="cash-outline" size={14} color={COLORS.textSecondary} />
-                    <Text style={styles.metaText}>₹{session.price} · pay trainer</Text>
-                  </View>
-                </View>
-
-                {/* Actions */}
-                <View style={styles.actionsRow}>
-                  {session.chatId && (
-                    <TouchableOpacity
-                      style={styles.chatActionBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/chat/[id]',
-                          params: {
-                            id: session.chatId!,
-                            name: session.trainerName,
-                            photo: session.trainerPhoto,
-                          },
-                        })
-                      }
-                    >
-                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={COLORS.primary} />
-                      <Text style={styles.chatActionText}>Chat</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {session.type === 'online' && isConfirmed && (
-                    <TouchableOpacity
-                      style={styles.joinCallBtn}
-                      onPress={() => openVideoCall(session.videoCallRoomId)}
-                    >
-                      <Ionicons name="videocam" size={16} color={COLORS.onColor} />
-                      <Text style={styles.joinCallText}>Join Live Call</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {isConfirmed && session.scheduledAt.getTime() <= now && (
-                    <TouchableOpacity
-                      style={styles.releaseBtn}
-                      onPress={() => handleConfirmSatisfied(session)}
-                    >
-                      <Text style={styles.releaseBtnText}>Mark done & rate</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {isPending && !isExpired(session) && (
-                    <TouchableOpacity style={styles.chatActionBtn} onPress={() => cancelRequest(session)}>
-                      <Ionicons name="close-circle-outline" size={16} color={COLORS.danger} />
-                      <Text style={[styles.chatActionText, { color: COLORS.danger }]}>Cancel request</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
+                )}
+              </Glass>
             );
           })
         )}
       </ScrollView>
 
-      {/* Satisfaction & Release Modal */}
-      <Modal visible={showRatingModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>How was your session?</Text>
-            <Text style={styles.modalSub}>
-              Rate {selectedSession?.trainerName}. Your review helps other clients.
-            </Text>
-
-            {/* Stars */}
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <TouchableOpacity key={s} onPress={() => setRating(s)}>
-                  <Ionicons
-                    name={s <= rating ? 'star' : 'star-outline'}
-                    size={36}
-                    color="#FFB300"
+      {/* Rate sheet */}
+      <Modal visible={!!rateFor} transparent animationType="fade" onRequestClose={() => setRateFor(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <Pressable style={styles.scrim} onPress={() => setRateFor(null)}>
+            <Pressable onPress={() => {}}>
+              <Glass radius={T.radius.xl} style={styles.sheet}>
+                <Text style={type.title}>How was it?</Text>
+                <Text style={type.caption}>Your rating helps other clients choose {rateFor?.trainerName}.</Text>
+                <View style={styles.stars}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <PressableScale key={i} onPress={() => setRating(i)} accessibilityLabel={`${i} stars`}>
+                      <Ionicons name={i <= rating ? 'star' : 'star-outline'} size={38} color={T.star} />
+                    </PressableScale>
+                  ))}
+                </View>
+                <Glass radius={T.radius.md} style={{ padding: 12 }}>
+                  <TextInput
+                    style={styles.reviewInput}
+                    placeholder="Write a short review (optional)"
+                    placeholderTextColor={T.text3}
+                    value={review}
+                    onChangeText={setReview}
+                    multiline
+                    maxLength={500}
+                    selectionColor={T.accent}
                   />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Leave an optional review for the trainer..."
-              placeholderTextColor={COLORS.textMuted}
-              value={review}
-              onChangeText={setReview}
-              multiline
-              numberOfLines={3}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRatingModal(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.confirmReleaseBtn} onPress={submitSatisfaction}>
-                <Text style={styles.confirmReleaseText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+                </Glass>
+                <Button title="Submit" icon="checkmark" onPress={submitRating} loading={submitting} />
+              </Glass>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
-
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    backgroundColor: COLORS.card,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary },
-  tabRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.card,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: 10,
-  },
-  tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: COLORS.background,
-  },
-  tabActive: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.onColor, fontWeight: '700' },
-  list: { padding: 16, gap: 14 },
-  center: { paddingVertical: 60, alignItems: 'center' },
-  emptyContainer: { paddingVertical: 60, alignItems: 'center', gap: 10, paddingHorizontal: 30 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
-  emptySub: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
-  bookBtn: {
-    marginTop: 12,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  bookBtnText: { color: COLORS.onColor, fontWeight: '700', fontSize: 14 },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 12,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  trainerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
-  trainerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
-  sessionDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusConfirmed: { backgroundColor: `${COLORS.primary}15` },
-  statusPending: { backgroundColor: `${COLORS.warning}18` },
-  statusCompleted: { backgroundColor: `${COLORS.success}15` },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  metaRow: {
-    flexDirection: 'row',
-    gap: 14,
-    backgroundColor: COLORS.background,
-    padding: 10,
-    borderRadius: 10,
-  },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  actionsRow: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', alignItems: 'center' },
-  chatActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  chatActionText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
-  joinCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  joinCallText: { color: COLORS.onColor, fontWeight: '700', fontSize: 13 },
-  releaseBtn: {
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  releaseBtnText: { color: COLORS.onColor, fontWeight: '700', fontSize: 13 },
-  modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
-  modalCard: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    gap: 14,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary },
-  modalSub: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginVertical: 8 },
-  reviewInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.background,
-  },
-  modalActions: { gap: 10, marginTop: 8 },
-  confirmReleaseBtn: {
-    backgroundColor: COLORS.success,
-    borderRadius: 14,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmReleaseText: { color: COLORS.onColor, fontSize: 16, fontWeight: '700' },
-  cancelBtn: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 15 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14 },
+  list: { paddingHorizontal: 20, gap: 12, paddingBottom: TAB_BAR_SPACE },
+  empty: { alignItems: 'center', gap: 8, padding: 28, marginTop: 20 },
+  card: { padding: 14, gap: 12 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  date: { width: 52, height: 58, borderRadius: 16, backgroundColor: T.glassStrong, alignItems: 'center', justifyContent: 'center' },
+  dateDay: { color: T.text2, fontSize: 11, fontWeight: '700' },
+  dateNum: { color: T.text, fontSize: 20, fontWeight: '800' },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  scrim: { flex: 1, backgroundColor: T.scrim, justifyContent: 'flex-end', padding: 12 },
+  sheet: { padding: 20, gap: 14, marginBottom: 8 },
+  stars: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 4 },
+  reviewInput: { color: T.text, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
 });

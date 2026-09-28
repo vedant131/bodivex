@@ -97,7 +97,7 @@ export default function BlueprintScreen() {
         ? await uploadImage(clientProfile.profilePhoto, `users/${user.id}/profile.jpg`)
         : undefined;
       const profile = { ...clientProfile, profilePhoto, fitnessBlueprint: bp, userId: user.id };
-      await saveClientProfile(user.id, profile);
+      await saveClientProfile(user.id, profile, { isNew: true });
       await updateUserProfile(user.id, { name: clientProfile.name, ...(profilePhoto && { profilePhoto }) });
       setUser({ ...user, name: clientProfile.name, profilePhoto });
       setClientProfile(profile);

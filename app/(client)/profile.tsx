@@ -1,286 +1,137 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useAuthStore } from '../../stores/authStore';
 import { logout as signOutUser } from '../../services/auth';
-import { COLORS } from '../../constants/colors';
-import { CONFIG } from '../../constants/config';
-import { FitnessGoalLabel } from '../../types/user';
 import { Screen } from '../../components/ui/Screen';
+import { Glass } from '../../components/ui/Glass';
+import { Button } from '../../components/ui/Button';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Avatar, Section } from '../../components/ui/Bits';
+import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
+import { T, type } from '../../constants/theme';
+import { CONFIG } from '../../constants/config';
+import { FitnessGoalLabel, BudgetRangeLabel } from '../../types/user';
+
+function MenuRow({ icon, label, onPress, danger }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean;
+}) {
+  return (
+    <PressableScale onPress={onPress} accessibilityLabel={label}>
+      <View style={styles.menuRow}>
+        <Ionicons name={icon} size={20} color={danger ? T.danger : T.text2} />
+        <Text style={[type.body, { flex: 1 }, danger && { color: T.danger }]}>{label}</Text>
+        {!danger && <Ionicons name="chevron-forward" size={18} color={T.text3} />}
+      </View>
+    </PressableScale>
+  );
+}
 
 export default function ClientProfileScreen() {
-  const { user, clientProfile } = useAuthStore();
+  const { user, clientProfile: p } = useAuthStore();
+  const bmi = p?.weight && p?.height ? (p.weight / Math.pow(p.height / 100, 2)).toFixed(1) : '–';
+  const bp = p?.fitnessBlueprint;
 
-  const bmi =
-    clientProfile?.weight && clientProfile?.height
-      ? (
-          clientProfile.weight /
-          Math.pow(
-            clientProfile.heightUnit === 'cm'
-              ? clientProfile.height / 100
-              : clientProfile.height * 0.3048,
-            2
-          )
-        ).toFixed(1)
-      : null;
-
-  const handleLogout = () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out of Bodivex?', [
+  const logout = () =>
+    Alert.alert('Log out?', 'You can sign back in any time with your number.', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log Out',
-        style: 'destructive',
-        onPress: async () => {
-          await signOutUser();
-          router.replace('/welcome');
-        },
-      },
+      { text: 'Log out', style: 'destructive', onPress: async () => { await signOutUser(); router.replace('/welcome'); } },
     ]);
-  };
 
   return (
-    <Screen preset="calm" style={{ paddingBottom: 88 }} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
-        <View style={styles.headerCard}>
-          <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              {user?.profilePhoto ? (
-                <Image source={{ uri: user.profilePhoto }} style={styles.avatarImg} contentFit="cover" />
-              ) : (
-                <Text style={styles.avatarText}>{user?.name?.[0] ?? 'C'}</Text>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{user?.name || 'Client'}</Text>
-              <Text style={styles.phone}>{user?.phone || '+91'}</Text>
-              <View style={styles.badgeRow}>
-                <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>Client Member</Text>
+    <Screen preset="calm" edges={['top']}>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Avatar uri={user?.profilePhoto} name={user?.name || 'You'} size={84} radius={42} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={type.title} numberOfLines={1}>{user?.name || 'You'}</Text>
+            <Text style={type.caption}>{user?.phone} · {p?.city}</Text>
+          </View>
+        </View>
+        <Button title="Edit profile" icon="create-outline" variant="glass" size="md" onPress={() => router.push('/client-edit')} />
+
+        {/* Stats */}
+        <View style={styles.stats}>
+          {[
+            { v: p?.height ? `${p.height}` : '–', l: 'cm tall' },
+            { v: p?.weight ? `${p.weight}` : '–', l: 'kg' },
+            { v: bmi, l: 'BMI' },
+            { v: p?.fitnessLevel ? p.fitnessLevel[0].toUpperCase() + p.fitnessLevel.slice(1) : '–', l: 'level' },
+          ].map((s) => (
+            <Glass key={s.l} radius={T.radius.lg} style={styles.stat}>
+              <Text style={styles.statV} numberOfLines={1} adjustsFontSizeToFit>{s.v}</Text>
+              <Text style={type.caption}>{s.l}</Text>
+            </Glass>
+          ))}
+        </View>
+
+        {/* Goals & preferences */}
+        <View>
+          <Section title="Your goals" />
+          <View style={styles.wrap}>
+            {(p?.goals ?? []).map((g) => (
+              <Glass key={g} radius={T.radius.pill} style={styles.tag}>
+                <Text style={styles.tagText}>{FitnessGoalLabel[g] ?? g}</Text>
+              </Glass>
+            ))}
+          </View>
+          <Text style={[type.caption, { marginTop: 10 }]}>
+            {p?.sessionPreference === 'online' ? 'Online' : p?.sessionPreference === 'offline' ? 'In person' : 'Online or in person'}
+            {p?.budgetRange ? ` · ${BudgetRangeLabel[p.budgetRange]} per session` : ''}
+            {p?.gymName ? ` · ${p.gymName}` : ''}
+          </Text>
+        </View>
+
+        {/* Blueprint, shown inline (opening onboarding used to regenerate + re-save it) */}
+        {bp && (
+          <View>
+            <Section title="Your blueprint" />
+            <Glass radius={T.radius.xl} style={styles.bp}>
+              {[
+                { icon: 'fitness' as const, label: 'Ideal coach', v: bp.trainerType },
+                { icon: 'list' as const, label: 'Training style', v: bp.recommendedStyle },
+                { icon: 'time' as const, label: 'Timeline', v: bp.estimatedTimeline },
+              ].map((r) => (
+                <View key={r.label} style={styles.bpRow}>
+                  <View style={styles.bpIcon}><Ionicons name={r.icon} size={16} color={T.accent} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={type.micro}>{r.label}</Text>
+                    <Text style={[type.body, { marginTop: 2 }]}>{r.v}</Text>
+                  </View>
                 </View>
-                {clientProfile?.aadhaarVerified && (
-                  <View style={styles.kycBadge}>
-                    <Ionicons name="checkmark-circle" size={12} color={COLORS.success} />
-                    <Text style={styles.kycBadgeText}>KYC Verified</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Body Stats & Fitness Profile */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Physical Stats & Profile</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxVal}>{clientProfile?.height ?? '--'} {clientProfile?.heightUnit ?? 'cm'}</Text>
-              <Text style={styles.statBoxLabel}>Height</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxVal}>{clientProfile?.weight ?? '--'} kg</Text>
-              <Text style={styles.statBoxLabel}>Weight</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxVal}>{bmi ?? '--'}</Text>
-              <Text style={styles.statBoxLabel}>Est. BMI</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxVal}>
-                {clientProfile?.fitnessLevel
-                  ? clientProfile.fitnessLevel.charAt(0).toUpperCase() + clientProfile.fitnessLevel.slice(1)
-                  : '--'}
-              </Text>
-              <Text style={styles.statBoxLabel}>Level</Text>
-            </View>
-          </View>
-
-          {clientProfile?.gymName && (
-            <View style={styles.infoRow}>
-              <Ionicons name="barbell-outline" size={18} color={COLORS.primary} />
-              <Text style={styles.infoRowText}>Home Gym: {clientProfile.gymName}</Text>
-            </View>
-          )}
-
-          {/* Fitness Goals */}
-          {clientProfile?.goals && clientProfile.goals.length > 0 && (
-            <View style={styles.goalsContainer}>
-              <Text style={styles.subTitle}>Selected Goals</Text>
-              <View style={styles.goalChips}>
-                {clientProfile.goals.map((g) => (
-                  <View key={g} style={styles.goalChip}>
-                    <Text style={styles.goalChipText}>{FitnessGoalLabel[g] || g}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* AI Blueprint Quick Link */}
-        {clientProfile?.fitnessBlueprint && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>AI Fitness Blueprint</Text>
-            <TouchableOpacity
-              style={styles.blueprintCard}
-              onPress={() => router.push('/onboarding/client/blueprint')}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.blueprintTitle}>Personalized strategy</Text>
-                <Text style={styles.blueprintSub} numberOfLines={2}>
-                  {clientProfile.fitnessBlueprint.trainerType} · {clientProfile.fitnessBlueprint.estimatedTimeline}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
-            </TouchableOpacity>
+              ))}
+              {!!bp.additionalNotes && <Text style={[type.caption, { lineHeight: 18 }]}>{bp.additionalNotes}</Text>}
+            </Glass>
           </View>
         )}
 
-        {/* Settings & Support */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings & About</Text>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => Alert.alert('Bodivex Support', `Need help? Reach our team at ${CONFIG.supportEmail}`)}
-          >
-            <Ionicons name="help-circle-outline" size={20} color={COLORS.textPrimary} />
-            <Text style={styles.menuItemText}>Help & Support</Text>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => Alert.alert('About Bodivex', `${CONFIG.appName} - ${CONFIG.tagline}\nOfficial website: ${CONFIG.website}`)}
-          >
-            <Ionicons name="information-circle-outline" size={20} color={COLORS.textPrimary} />
-            <Text style={styles.menuItemText}>About Bodivex</Text>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
-            <Text style={styles.logoutText}>Log Out</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: 40 }} />
+        {/* Settings */}
+        <Glass radius={T.radius.xl} style={{ paddingHorizontal: 16 }}>
+          <MenuRow icon="help-circle-outline" label="Help & support" onPress={() => Alert.alert('Help', `Write to us at ${CONFIG.supportEmail}`)} />
+          <View style={styles.sep} />
+          <MenuRow icon="information-circle-outline" label="About Bodivex" onPress={() => Alert.alert(CONFIG.appName, `${CONFIG.tagline}\n${CONFIG.website}`)} />
+          <View style={styles.sep} />
+          <MenuRow icon="log-out-outline" label="Log out" onPress={logout} danger />
+        </Glass>
       </ScrollView>
-
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  headerCard: {
-    backgroundColor: COLORS.card,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  avatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.onColor, fontSize: 26, fontWeight: '800' },
-  name: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary },
-  phone: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' },
-  roleBadge: {
-    backgroundColor: `${COLORS.secondary}15`,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  roleBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.secondary },
-  kycBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${COLORS.success}18`,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  kycBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.success },
-  section: {
-    backgroundColor: COLORS.card,
-    marginTop: 12,
-    padding: 18,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: COLORS.border,
-    gap: 12,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  statsGrid: { flexDirection: 'row', gap: 10 },
-  statBox: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  statBoxVal: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  statBoxLabel: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.background,
-    padding: 12,
-    borderRadius: 10,
-  },
-  infoRowText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
-  goalsContainer: { gap: 6 },
-  subTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  goalChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  goalChip: {
-    backgroundColor: `${COLORS.primary}12`,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  goalChipText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
-  blueprintCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  blueprintTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
-  blueprintSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemText: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
-  logoutItem: { borderBottomWidth: 0 },
-  logoutText: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
+  body: { padding: 20, gap: 20, paddingBottom: TAB_BAR_SPACE },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },
+  stats: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, padding: 12, gap: 2, alignItems: 'center' },
+  statV: { color: T.text, fontSize: 18, fontWeight: '800' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { paddingHorizontal: 14, height: 34, justifyContent: 'center' },
+  tagText: { color: T.text, fontSize: 13, fontWeight: '700' },
+  bp: { padding: 16, gap: 14 },
+  bpRow: { flexDirection: 'row', gap: 12 },
+  bpIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,45,111,0.16)', alignItems: 'center', justifyContent: 'center' },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: T.hairline },
 });

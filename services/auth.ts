@@ -83,11 +83,16 @@ export const getClientProfile = async (uid: string): Promise<ClientProfile | nul
   return { ...data, userId: uid, createdAt: toDate(data.createdAt), updatedAt: toDate(data.updatedAt) } as ClientProfile;
 };
 
-export const saveClientProfile = async (uid: string, profile: Partial<ClientProfile>): Promise<void> => {
-  const clean = JSON.parse(JSON.stringify(profile)); // drops undefined, Dates → ISO strings
+export const saveClientProfile = async (
+  uid: string,
+  profile: Partial<ClientProfile>,
+  { isNew = false }: { isNew?: boolean } = {}
+): Promise<void> => {
+  const { createdAt, updatedAt, ...rest } = profile;
+  const clean = JSON.parse(JSON.stringify(rest)); // drops undefined, Dates → ISO strings
   await setDoc(
     doc(db, COLLECTIONS.CLIENTS, uid),
-    { ...clean, userId: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
+    { ...clean, userId: uid, ...(isNew && { createdAt: serverTimestamp() }), updatedAt: serverTimestamp() },
     { merge: true }
   );
 };

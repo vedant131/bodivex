@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,30 +14,13 @@ import { Glass } from '../components/ui/Glass';
 import { Button } from '../components/ui/Button';
 import { PressableScale } from '../components/ui/PressableScale';
 import { Avatar, Chip, IconButton } from '../components/ui/Bits';
+import { Field, Input } from '../components/ui/Form';
 import { T, type } from '../constants/theme';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../constants/config';
 import { SPECIALIZATIONS, TrainerProfile } from '../types/trainer';
 import { SessionPreference } from '../types/user';
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Bengali'];
-
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={type.micro}>{label}</Text>
-      {children}
-      {hint && <Text style={type.caption}>{hint}</Text>}
-    </View>
-  );
-}
-
-function Input(props: React.ComponentProps<typeof TextInput>) {
-  return (
-    <Glass radius={T.radius.md} style={styles.inputWrap}>
-      <TextInput placeholderTextColor={T.text3} selectionColor={T.accent} {...props} style={[styles.input, props.style]} />
-    </Glass>
-  );
-}
 
 /** Trainer edits their public profile. Approval/rating/fee fields are server-only (see firestore.rules). */
 export default function EditTrainerProfile() {
@@ -207,8 +190,6 @@ const styles = StyleSheet.create({
     position: 'absolute', right: 2, bottom: 2, width: 32, height: 32, borderRadius: 16,
     backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: T.bg,
   },
-  inputWrap: { paddingHorizontal: 14, paddingVertical: 4 },
-  input: { color: T.text, fontSize: 16, fontWeight: '600', minHeight: 44 },
   chips: { gap: 8, paddingRight: 20 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
