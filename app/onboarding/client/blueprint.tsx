@@ -17,7 +17,8 @@ import { uploadImage } from '../../../services/storage';
 import { useAuthStore } from '../../../stores/authStore';
 import { COLORS } from '../../../constants/colors';
 import { FitnessGoal, FitnessBlueprint, FitnessGoalLabel } from '../../../types/user';
-import { CONFIG } from '../../../constants/config';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../../services/firebase';
 
 // ─── Gemini AI Blueprint Generator ──────────────────────────────────────────
 
@@ -29,55 +30,17 @@ const generateBlueprintWithAI = async (
   fitnessLevel: string,
   goals: FitnessGoal[]
 ): Promise<FitnessBlueprint> => {
-  const goalLabels = goals.map(g => FitnessGoalLabel[g]).join(', ');
-
-  const prompt = `You are a professional fitness advisor for Bodivex app.
-A user has provided:
-- Age: ${age} years, Gender: ${gender}
-- Weight: ${weight}kg, Height: ${height}cm
-- Fitness Level: ${fitnessLevel}
-- Goals: ${goalLabels}
-
-Generate a concise, motivating Fitness Blueprint as a JSON object with these exact fields:
-{
-  "trainerType": "string - what type of trainer they need e.g. 'Certified Personal Trainer specializing in body recomposition'",
-  "recommendedStyle": "string - training style e.g. 'Progressive overload weight training + 2x cardio per week'",
-  "estimatedTimeline": "string - realistic timeline e.g. '8–12 weeks to see visible results with consistency'",
-  "additionalNotes": "string - 2-3 personalized tips based on their profile",
-  "recommendedFilters": {
-    "specializations": ["array", "of", "specializations"],
-    "sessionPreference": "online or offline or both",
-    "minExperience": 1
-  }
-}
-Return ONLY valid JSON, no markdown.`;
-
-  if (!CONFIG.gemini.apiKey) return getFallbackBlueprint(goals, fitnessLevel);
-
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${CONFIG.gemini.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 500 },
-        }),
-      }
+    const call = httpsCallable<object, { blueprint: Omit<FitnessBlueprint, 'goals' | 'generatedAt'> | null }>(
+      functions,
+      'generateBlueprint'
     );
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const parsed = JSON.parse(text.trim());
-    return {
-      goals,
-      ...parsed,
-      generatedAt: new Date(),
-    } as FitnessBlueprint;
-  } catch {
-    // Fallback blueprint if AI fails
-    return getFallbackBlueprint(goals, fitnessLevel);
+    const { data } = await call({ age, gender, weight, height, fitnessLevel, goals: goals.map((g) => FitnessGoalLabel[g]) });
+    if (data.blueprint) return { goals, ...data.blueprint, generatedAt: new Date() };
+  } catch (e) {
+    console.warn('Blueprint function unavailable, using built-in blueprint', e);
   }
+  return getFallbackBlueprint(goals, fitnessLevel);
 };
 
 const getFallbackBlueprint = (goals: FitnessGoal[], fitnessLevel: string): FitnessBlueprint => {

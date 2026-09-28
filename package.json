@@ -57,7 +57,8 @@
     "emulators": "firebase emulators:start --import=.emulator-data --export-on-exit=.emulator-data",
     "seed": "node scripts/seed.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "node scripts/check-flow.mjs"
+    "check": "node scripts/check-flow.mjs",
+    "check:ci": "node scripts/check-ci.mjs"
   },
   "private": true
 }

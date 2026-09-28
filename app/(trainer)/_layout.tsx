@@ -1,10 +1,12 @@
 import { Tabs, Redirect } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
+import { useSessionAlerts } from '../../hooks/useSessionAlerts';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 
 export default function TrainerLayout() {
   const role = useAuthStore((s) => s.user?.role);
+  useSessionAlerts('trainer');
   if (role && role !== 'trainer') return <Redirect href="/(client)/home" />;
 
   return (

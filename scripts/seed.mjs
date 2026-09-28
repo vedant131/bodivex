@@ -76,8 +76,8 @@ for (const [i, t] of TRAINERS.entries()) {
     totalSessions: t.sessions,
     isKYCApproved: true,
     kycStatus: 'approved',
-    isAvailableNow: i % 2 === 0,
-    availabilityStatus: i % 2 === 0 ? 'available_now' : 'offline',
+    isAvailableNow: true,
+    availabilityStatus: 'available_now',
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };

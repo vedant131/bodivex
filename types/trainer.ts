@@ -41,7 +41,9 @@ export interface TrainerProfile {
   pricingMonthly?: number;
   gymLocation?: GymLocation;
   sessionPreference: SessionPreference;
-  isAvailableNow: boolean;
+  isAvailableNow: boolean;      // "Taking bookings" switch; off = clients can't request
+  leadCount?: number;           // distinct clients accepted (server-managed)
+  feesPaid?: number;            // total new-client fees paid (server-managed)
   availabilityStatus: AvailabilityStatus;
   rating: number;
   totalReviews: number;

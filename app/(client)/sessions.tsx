@@ -21,6 +21,7 @@ import {
   clientCompleteSession,
 } from '../../services/bookings';
 import { COLORS } from '../../constants/colors';
+import { openVideoCall } from '../../services/video';
 import { Session } from '../../types/session';
 
 type FilterTab = 'upcoming' | 'completed' | 'all';
@@ -210,9 +211,7 @@ export default function ClientSessionsScreen() {
                   {session.type === 'online' && isConfirmed && (
                     <TouchableOpacity
                       style={styles.joinCallBtn}
-                      onPress={() =>
-                        Alert.alert('Starting Live Video Session', `Connecting to ${session.trainerName}...`)
-                      }
+                      onPress={() => openVideoCall(session.videoCallRoomId)}
                     >
                       <Ionicons name="videocam" size={16} color={COLORS.white} />
                       <Text style={styles.joinCallText}>Join Live Call</Text>

@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -31,6 +32,7 @@ if (isFirstInit && Platform.OS !== 'web') {
 export const auth = authInstance;
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
 if (USE_EMULATORS && isFirstInit) {
   // Phone on Wi-Fi reaches the PC via the same host Metro is served from.
@@ -39,6 +41,7 @@ if (USE_EMULATORS && isFirstInit) {
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(db, host, 8080);
   connectStorageEmulator(storage, host, 9199);
+  connectFunctionsEmulator(functions, host, 5001);
 }
 
 export { serverTimestamp, Timestamp };

@@ -29,6 +29,7 @@ import {
   getTrainerReviews,
 } from '../../services/trainers';
 import { COLORS } from '../../constants/colors';
+import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA } from '../../types/trainer';
 
 export default function TrainerProfileManageScreen() {
@@ -152,6 +153,10 @@ export default function TrainerProfileManageScreen() {
   const handleAnswerQA = async (qaId: string) => {
     const text = replyTextMap[qaId]?.trim();
     if (!text) return;
+    if (CONTACT_INFO_PATTERN.test(text)) {
+      Alert.alert('Keep it on Bodivex', CONTACT_INFO_MESSAGE);
+      return;
+    }
 
     setIsAnsweringQA(qaId);
     try {

@@ -65,13 +65,6 @@ export const getOrCreateChat = async (
   return ref.id;
 };
 
-export const unlockChat = async (chatId: string): Promise<void> => {
-  const ref = doc(db, COLLECTIONS.CHATS, chatId);
-  await updateDoc(ref, { isUnlocked: true });
-};
-
-// ─── Messages ─────────────────────────────────────────────────────────────────
-
 export const sendMessage = async (
   chatId: string,
   message: Omit<Message, 'id' | 'timestamp' | 'read'>

@@ -13,10 +13,12 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { db, COLLECTIONS } from './firebase';
+import { db, functions, COLLECTIONS } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { CONFIG } from '../constants/config';
 import { Session, SessionStatus, BookingRequest, ClientSummary } from '../types/session';
 import { TrainerProfile } from '../types/trainer';
-import { getOrCreateChat, unlockChat } from './chat';
+import { getOrCreateChat } from './chat';
 import { slotKey, dateKey } from './slots';
 
 const toSession = (id: string, data: any): Session => ({
@@ -72,21 +74,23 @@ export const createBooking = async (
   return sessionRef.id;
 };
 
-export const trainerAcceptSession = async (sessionId: string): Promise<void> => {
-  const ref = doc(db, COLLECTIONS.SESSIONS, sessionId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-  const data = snap.data();
+/** Fee the trainer pays to accept this client now (0 for free quota or returning client). */
+export const getAcceptFee = async (trainerId: string, clientId: string, leadCount: number): Promise<number> => {
+  const lead = await getDoc(doc(db, COLLECTIONS.TRAINERS, trainerId, 'leads', clientId));
+  if (lead.exists()) return 0;
+  return leadCount >= CONFIG.freeClientsPerTrainer ? CONFIG.newClientFee : 0;
+};
 
-  await updateDoc(ref, {
-    status: 'confirmed',
-    updatedAt: serverTimestamp(),
-  });
-
-  // Unlock chat between trainer and client
-  if (data.chatId) {
-    await unlockChat(data.chatId);
-  }
+/**
+ * Accepts through the acceptBooking Cloud Function, which charges the new-client
+ * fee, confirms the session and unlocks chat. `payment` is simulated locally.
+ */
+export const trainerAcceptSession = async (
+  sessionId: string,
+  payment?: 'dev-simulated'
+): Promise<{ fee: number }> => {
+  const call = httpsCallable<{ sessionId: string; payment?: string }, { fee: number }>(functions, 'acceptBooking');
+  return (await call({ sessionId, payment })).data;
 };
 
 export const trainerRejectSession = async (

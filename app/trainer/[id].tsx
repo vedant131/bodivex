@@ -18,6 +18,7 @@ import {
   askTrainerQuestion,
 } from '../../services/trainers';
 import { COLORS } from '../../constants/colors';
+import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { TrainerProfile, Transformation, TrainerQA } from '../../types/trainer';
 
 const { width } = Dimensions.get('window');
@@ -55,13 +56,17 @@ export default function TrainerProfileScreen() {
   }, [id]);
 
   const handleAskQuestion = async () => {
-    if (!newQuestion.trim() || !id) return;
+    if (!newQuestion.trim() || !id || !user) return;
+    if (CONTACT_INFO_PATTERN.test(newQuestion)) {
+      Alert.alert('Keep it on Bodivex', CONTACT_INFO_MESSAGE);
+      return;
+    }
     setIsSubmittingQA(true);
     const askerRole: 'client' | 'trainer' = user?.role === 'trainer' ? 'trainer' : 'client';
     try {
       const qId = await askTrainerQuestion(
         id,
-        user?.id || 'guest_user',
+        user.id,
         user?.name || (askerRole === 'trainer' ? 'Coach' : 'Client'),
         newQuestion.trim(),
         askerRole,
@@ -71,7 +76,7 @@ export default function TrainerProfileScreen() {
         {
           id: qId,
           trainerId: id,
-          clientId: user?.id || 'guest_user',
+          clientId: user.id,
           clientName: user?.name || (askerRole === 'trainer' ? 'Coach' : 'Client'),
           askerRole,
           askerPhoto: user?.profilePhoto,
@@ -144,7 +149,7 @@ export default function TrainerProfileScreen() {
               <View style={[styles.availChip, trainer.isAvailableNow && styles.availChipActive]}>
                 <View style={[styles.availDot, trainer.isAvailableNow && styles.availDotActive]} />
                 <Text style={styles.availText}>
-                  {trainer.isAvailableNow ? 'Available for Live Session' : 'Offline'}
+                  {trainer.isAvailableNow ? 'Taking bookings' : 'Not taking bookings'}
                 </Text>
               </View>
 
@@ -527,17 +532,20 @@ export default function TrainerProfileScreen() {
       <SafeAreaView edges={['bottom']} style={styles.bottomBarWrap}>
         <View style={styles.bottomBarContent}>
           <TouchableOpacity
-            style={styles.mainBookBtn}
+            style={[styles.mainBookBtn, !trainer.isAvailableNow && { opacity: 0.5 }]}
             onPress={() => router.push(`/booking/${trainer.id}` as any)}
+            disabled={!trainer.isAvailableNow}
             activeOpacity={0.9}
           >
             <View>
               <Text style={styles.bookPriceText}>From ₹{minRate} / session</Text>
-              <Text style={styles.bookPriceSub}>Free to request · pay trainer directly</Text>
+              <Text style={styles.bookPriceSub}>
+                {trainer.isAvailableNow ? 'Free to request · pay trainer directly' : 'Not taking new bookings right now'}
+              </Text>
             </View>
             <View style={styles.bookBtnRight}>
-              <Text style={styles.mainBookBtnText}>Book Session</Text>
-              <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
+              <Text style={styles.mainBookBtnText}>{trainer.isAvailableNow ? 'Book Session' : 'Unavailable'}</Text>
+              {trainer.isAvailableNow && <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
             </View>
           </TouchableOpacity>
         </View>

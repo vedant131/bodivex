@@ -43,3 +43,8 @@ yarn-error.*
 # Firebase emulator
 .emulator-data/
 *-debug.log
+
+# Cloud Functions
+functions/node_modules/
+functions/.env.local
+functions/.secret.local

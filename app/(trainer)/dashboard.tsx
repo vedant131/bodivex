@@ -23,9 +23,12 @@ import {
 import {
   subscribeToTrainerSessions,
   trainerAcceptSession,
+  getAcceptFee,
   trainerRejectSession,
 } from '../../services/bookings';
 import { COLORS } from '../../constants/colors';
+import { CONFIG } from '../../constants/config';
+import { openVideoCall } from '../../services/video';
 import { Session } from '../../types/session';
 
 export default function TrainerDashboardScreen() {
@@ -61,15 +64,34 @@ export default function TrainerDashboardScreen() {
     }
   };
 
-  const handleAccept = async (sessionId: string, clientName: string) => {
+  const confirmAccept = async (sessionId: string, clientName: string, payment?: 'dev-simulated') => {
     try {
-      await trainerAcceptSession(sessionId);
+      const { fee } = await trainerAcceptSession(sessionId, payment);
       Alert.alert(
-        'Session Accepted! 🤝',
-        `You are now connected with ${clientName}. Chat has been unlocked and the booking is confirmed.`
+        'Booking confirmed',
+        `${fee ? `Paid ₹${fee}. ` : ''}${clientName} has been notified and chat is unlocked.`
       );
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Could not accept', e.message);
+    }
+  };
+
+  const handleAccept = async (req: Session) => {
+    if (!trainerProfile) return;
+    try {
+      const fee = await getAcceptFee(trainerProfile.id, req.clientId, trainerProfile.leadCount ?? 0);
+      if (fee === 0) return confirmAccept(req.id, req.clientName);
+      // Note: simulated payment in dev; Razorpay checkout replaces this at launch
+      Alert.alert(
+        `Pay ₹${fee} to accept`,
+        `${req.clientName} is a new client. You've used your ${CONFIG.freeClientsPerTrainer} free clients, so a one-time ₹${fee} fee applies. Returning clients are always free.`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: `Pay ₹${fee} (test)`, onPress: () => confirmAccept(req.id, req.clientName, 'dev-simulated') },
+        ]
+      );
+    } catch (e: any) {
+      Alert.alert('Could not accept', e.message);
     }
   };
 
@@ -91,7 +113,9 @@ export default function TrainerDashboardScreen() {
     ]);
   };
 
-  const pendingRequests = sessions.filter((s) => s.status === 'pending');
+  // Requests whose slot already passed can't be accepted (acceptBooking rejects them too)
+  const pendingRequests = sessions.filter((s) => s.status === 'pending' && s.scheduledAt.getTime() > Date.now());
+  const freeLeft = Math.max(0, CONFIG.freeClientsPerTrainer - (trainerProfile?.leadCount ?? 0));
   const todaySessions = sessions.filter((s) => s.status === 'confirmed');
 
   return (
@@ -216,13 +240,13 @@ export default function TrainerDashboardScreen() {
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, isAvailableNow && styles.statusDotActive]} />
               <Text style={styles.statusTitle}>
-                {isAvailableNow ? 'Available for Instant Sessions' : 'Offline / Standard Booking'}
+                {isAvailableNow ? 'Taking bookings' : 'Not taking bookings'}
               </Text>
             </View>
             <Text style={styles.statusSub}>
               {isAvailableNow
-                ? 'Clients can connect with you right now for live consultations!'
-                : 'Turn ON to show a green "Available Now" badge on discovery.'}
+                ? 'Clients can send you booking requests.'
+                : 'Clients can see your profile but cannot book. Turn on when you have time.'}
             </Text>
           </View>
           <Switch
@@ -238,6 +262,9 @@ export default function TrainerDashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>⚡ Booking Requests ({pendingRequests.length})</Text>
+              <Text style={styles.freeLeft}>
+                {freeLeft > 0 ? `${freeLeft} free new client${freeLeft > 1 ? 's' : ''} left` : `₹${CONFIG.newClientFee} per new client`}
+              </Text>
             </View>
 
             {pendingRequests.map((req) => (
@@ -276,9 +303,9 @@ export default function TrainerDashboardScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.acceptBtn}
-                    onPress={() => handleAccept(req.id, req.clientName)}
+                    onPress={() => handleAccept(req)}
                   >
-                    <Text style={styles.acceptText}>Accept & Unlock Chat</Text>
+                    <Text style={styles.acceptText}>Accept</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -371,9 +398,7 @@ export default function TrainerDashboardScreen() {
                     {session.type === 'online' && (
                       <TouchableOpacity
                         style={styles.startCallBtn}
-                        onPress={() =>
-                          Alert.alert('Live Session', `Starting video training with ${session.clientName}...`)
-                        }
+                        onPress={() => openVideoCall(session.videoCallRoomId)}
                       >
                         <Ionicons name="videocam" size={16} color={COLORS.white} />
                         <Text style={styles.startCallText}>Start Call</Text>
@@ -393,6 +418,7 @@ export default function TrainerDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  freeLeft: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',

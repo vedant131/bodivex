@@ -10,6 +10,12 @@ export const CITIES = [
 ] as const;
 export type City = typeof CITIES[number];
 
+// Public Q&A must not carry contact details (keep in sync with firestore.rules noContactInfo)
+export const CONTACT_INFO_PATTERN =
+  /(https?:\/\/|www\.|wa\.me|t\.me|instagram|insta\b|whatsapp|telegram|[0-9][0-9 ()+.-]{7,}[0-9]|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|@[a-z0-9_.]{3,})/i;
+export const CONTACT_INFO_MESSAGE =
+  'Please keep Q&A on Bodivex: phone numbers, links, emails and social handles are not allowed. Book a session to chat privately.';
+
 export const CONFIG = {
   appName: 'Bodivex',
   tagline: 'Find. Train. Transform.',
@@ -61,9 +67,4 @@ export const CONFIG = {
     apiKey: 'YOUR_GOOGLE_MAPS_API_KEY',
   },
 
-  // Gemini AI — dev only. Before launch this call moves to a Cloud Function,
-  // because anything in the app bundle can be extracted.
-  gemini: {
-    apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '',
-  },
 } as const;
