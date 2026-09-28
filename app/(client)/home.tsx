@@ -1,75 +1,32 @@
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Modal, Pressable } from 'react-native';
+import React, { useEffect, useCallback, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  RefreshControl,
+  TextInput,
+} from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Image } from 'expo-image';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrainerStore } from '../../stores/trainerStore';
-import { subscribeToClientSessions } from '../../services/bookings';
+import { COLORS } from '../../constants/colors';
+import { TrainerProfile } from '../../types/trainer';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
-import { Backdrop } from '../../components/ui/Backdrop';
-import { Glass } from '../../components/ui/Glass';
-import { PressableScale } from '../../components/ui/PressableScale';
-import { Rings } from '../../components/ui/Rings';
-import { Avatar, Section } from '../../components/ui/Bits';
-import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
-import { T, type } from '../../constants/theme';
-import { CITIES } from '../../constants/config';
-import { Session } from '../../types/session';
-
-const WEEKLY_GOAL = 3;
-
-const GOALS = [
-  { label: 'Lose weight', spec: 'Weight Loss', icon: 'flame' as const },
-  { label: 'Build muscle', spec: 'Muscle Gain', icon: 'barbell' as const },
-  { label: 'Yoga & mobility', spec: 'Yoga', icon: 'leaf' as const },
-];
-
-const startOfWeek = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
-  return d;
-};
-
-function CitySheet({ visible, city, onPick, onClose }: {
-  visible: boolean; city: string; onPick: (c: string) => void; onClose: () => void;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose}>
-        <Glass radius={T.radius.xl} style={styles.sheet}>
-          <Text style={[type.title, { marginBottom: 8 }]}>Choose your city</Text>
-          {CITIES.map((c) => (
-            <PressableScale key={c} onPress={() => { onPick(c); onClose(); }} style={styles.cityRow}>
-              <Text style={[type.body, c === city && { color: T.accent, fontWeight: '800' }]}>{c}</Text>
-              {c === city && <Ionicons name="checkmark-circle" size={20} color={T.accent} />}
-            </PressableScale>
-          ))}
-        </Glass>
-      </Pressable>
-    </Modal>
-  );
-}
+import { CityPicker } from '../../components/shared/CityPicker';
 
 export default function HomeScreen() {
   const { user, clientProfile } = useAuthStore();
   const { trainers, topTrainers, isLoading, fetchTrainers, fetchTopTrainers } = useTrainerStore();
 
   const [city, setCity] = useState<string>(clientProfile?.city ?? 'Mumbai');
-  const [cityOpen, setCityOpen] = useState(false);
-  const [sessions, setSessions] = useState<Session[]>([]);
-
   useEffect(() => {
     if (clientProfile?.city) setCity(clientProfile.city);
   }, [clientProfile?.city]);
-
-  useEffect(() => {
-    if (!user) return;
-    return subscribeToClientSessions(user.id, setSessions);
-  }, [user?.id]);
 
   const load = useCallback(() => {
     fetchTrainers({
@@ -79,205 +36,268 @@ export default function HomeScreen() {
     });
     fetchTopTrainers(city);
   }, [city, clientProfile]);
+
   useEffect(load, [load]);
+  const onRefresh = load;
 
-  const week = useMemo(() => {
-    const from = startOfWeek().getTime();
-    const thisWeek = sessions.filter((s) => s.scheduledAt.getTime() >= from && ['confirmed', 'completed'].includes(s.status));
-    const next = sessions
-      .filter((s) => s.status === 'confirmed' && s.scheduledAt.getTime() > Date.now())
-      .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0];
-    return {
-      done: thisWeek.filter((s) => s.status === 'completed').length,
-      booked: thisWeek.length,
-      pending: sessions.filter((s) => s.status === 'pending').length,
-      next,
-    };
-  }, [sessions]);
-
-  const firstName = user?.name?.split(' ')[0] || 'there';
-  const hour = new Date().getHours();
-  const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const matched = trainers.filter((t) => !topTrainers.slice(0, 6).some((x) => x.id === t.id));
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   return (
-    <View style={{ flex: 1 }}>
-      <Backdrop preset="hero" />
-      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE }}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} tintColor={T.text} />}
-        >
-          {/* Top bar */}
-          <View style={styles.topBar}>
-            <PressableScale onPress={() => setCityOpen(true)} accessibilityLabel={`City: ${city}. Change city`}>
-              <Glass radius={T.radius.pill} interactive style={styles.cityPill}>
-                <Ionicons name="location" size={14} color={T.accent} />
-                <Text style={styles.cityText}>{city}</Text>
-                <Ionicons name="chevron-down" size={14} color={T.text2} />
-              </Glass>
-            </PressableScale>
-            <PressableScale onPress={() => router.push('/(client)/profile')} accessibilityLabel="Profile">
-              <Avatar uri={user?.profilePhoto} name={user?.name || 'You'} size={40} radius={20} />
-            </PressableScale>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting()}, {user?.name?.split(' ')[0] ?? 'there'} 👋</Text>
+            <Text style={styles.subtitle}>Find your perfect trainer</Text>
           </View>
-
-          {/* Greeting */}
-          <Animated.View entering={FadeInDown.duration(500)} style={styles.px}>
-            <Text style={[type.callout, { marginTop: 18 }]}>{hello}, {firstName}</Text>
-            <Text style={styles.hero}>
-              Let's get{'\n'}<Text style={{ color: T.accent }}>stronger.</Text>
-            </Text>
-          </Animated.View>
-
-          {/* Weekly rings */}
-          <Animated.View entering={FadeInDown.delay(120).duration(500)} style={styles.px}>
-            <PressableScale onPress={() => router.push('/(client)/sessions')} accessibilityLabel="Your week">
-              <Glass radius={T.radius.xl} style={styles.weekCard}>
-                <Rings
-                  size={78}
-                  rings={[
-                    { progress: week.booked / WEEKLY_GOAL, color: T.ring1 },
-                    { progress: week.done / WEEKLY_GOAL, color: T.ring2 },
-                    { progress: week.pending ? 0.35 : 0, color: T.ring3 },
-                  ]}
-                />
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={type.headline}>{week.booked} of {WEEKLY_GOAL} sessions this week</Text>
-                  <Text style={type.caption} numberOfLines={2}>
-                    {week.next
-                      ? `Next: ${week.next.scheduledAt.toLocaleString('en-IN', { weekday: 'short', hour: 'numeric', minute: '2-digit' })} with ${week.next.trainerName.split(' ')[0]}`
-                      : week.pending
-                      ? `${week.pending} request${week.pending > 1 ? 's' : ''} waiting for the coach`
-                      : 'Book your first session to start your streak'}
-                  </Text>
-                  <View style={styles.legend}>
-                    <Legend color={T.ring1} label="Booked" />
-                    <Legend color={T.ring2} label="Done" />
-                    <Legend color={T.ring3} label="Pending" />
-                  </View>
-                </View>
-              </Glass>
-            </PressableScale>
-          </Animated.View>
-
-          {/* Search */}
-          <View style={styles.px}>
-            <PressableScale onPress={() => router.push('/(client)/search')} accessibilityLabel="Search coaches">
-              <Glass radius={T.radius.lg} interactive style={styles.search}>
-                <Ionicons name="search" size={18} color={T.text2} />
-                <Text style={[type.callout, { flex: 1, color: T.text3 }]}>Try "yoga for back pain"</Text>
-                <View style={styles.searchBtn}>
-                  <Ionicons name="options-outline" size={16} color={T.text} />
-                </View>
-              </Glass>
-            </PressableScale>
-          </View>
-
-          {/* Goal bento */}
-          <View style={[styles.px, { marginTop: 26 }]}>
-            <Section title="What's your goal?" />
-            <View style={styles.bento}>
-              <PressableScale style={{ flex: 1.15 }} onPress={() => router.push({ pathname: '/(client)/search', params: { spec: GOALS[0].spec } })}>
-                <LinearGradient colors={T.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bentoBig}>
-                  <Ionicons name={GOALS[0].icon} size={28} color="#fff" />
-                  <View>
-                    <Text style={styles.bentoBigText}>{GOALS[0].label}</Text>
-                    <Text style={styles.bentoSub}>Fat loss plans · HIIT</Text>
-                  </View>
-                </LinearGradient>
-              </PressableScale>
-              <View style={{ flex: 1, gap: 10 }}>
-                {GOALS.slice(1).map((g, i) => (
-                  <PressableScale key={g.spec} style={{ flex: 1 }} onPress={() => router.push({ pathname: '/(client)/search', params: { spec: g.spec } })}>
-                    <Glass radius={T.radius.lg} style={styles.bentoSmall}>
-                      <View style={[styles.bentoIcon, { backgroundColor: i === 0 ? 'rgba(155,255,58,0.16)' : 'rgba(46,230,240,0.16)' }]}>
-                        <Ionicons name={g.icon} size={18} color={i === 0 ? T.ring2 : T.ring3} />
-                      </View>
-                      <Text style={styles.bentoSmallText}>{g.label}</Text>
-                    </Glass>
-                  </PressableScale>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {/* Top coaches carousel */}
-          <View style={{ marginTop: 28 }}>
-            <Section title={`Top coaches in ${city}`} action="See all" onAction={() => router.push('/(client)/search')} style={styles.px} />
-            {topTrainers.length === 0 && !isLoading ? (
-              <View style={styles.px}>
-                <Glass radius={T.radius.lg} style={styles.empty}>
-                  <Ionicons name="people-outline" size={22} color={T.text2} />
-                  <Text style={type.caption}>No coaches in {city} yet. Try Online coaches or another city.</Text>
-                </Glass>
-              </View>
+          <TouchableOpacity onPress={() => router.push('/(client)/profile')} style={styles.avatarBtn}>
+            {user?.profilePhoto ? (
+              <Image source={{ uri: user.profilePhoto }} style={styles.avatar} contentFit="cover" />
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-                {topTrainers.map((t) => <TrainerCard key={t.id} trainer={t} variant="compact" />)}
-              </ScrollView>
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>{user?.name?.[0] ?? 'U'}</Text>
+              </View>
             )}
-          </View>
+          </TouchableOpacity>
+        </View>
 
-          {/* Matched list */}
-          {matched.length > 0 && (
-            <View style={[styles.px, { marginTop: 28, gap: 10 }]}>
-              <Section title="Matched for you" />
-              {matched.map((t) => <TrainerCard key={t.id} trainer={t} variant="full" />)}
+        <View style={styles.cityRow}>
+          <CityPicker value={city} onChange={setCity} />
+        </View>
+
+        {/* Search Bar (tap → navigate to search) */}
+        <TouchableOpacity
+          style={styles.searchBar}
+          onPress={() => router.push('/(client)/search')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="search" size={20} color={COLORS.textMuted} />
+          <Text style={styles.searchPlaceholder}>Search trainers, specializations...</Text>
+          <Ionicons name="options" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        {/* AI Blueprint Banner (if user has blueprint) */}
+        {clientProfile?.fitnessBlueprint && (
+          <TouchableOpacity style={styles.blueprintBanner} activeOpacity={0.85}>
+            <View>
+              <Text style={styles.blueprintTitle}>🤖 Your Fitness Blueprint</Text>
+              <Text style={styles.blueprintSub} numberOfLines={1}>
+                {clientProfile.fitnessBlueprint.trainerType}
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={28} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
+
+        {/* Quick Filters */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
+          {[
+            { label: '🟢 Available Now', key: 'available' },
+            { label: '🔥 Weight Loss', key: 'weight_loss' },
+            { label: '💪 Muscle Gain', key: 'muscle' },
+            { label: '🌐 Online', key: 'online' },
+            { label: '📍 Near Me', key: 'nearby' },
+            { label: '⭐ Top Rated', key: 'top' },
+          ].map((f) => (
+            <TouchableOpacity key={f.key} style={styles.filterChip}>
+              <Text style={styles.filterChipText}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* 🏆 Bodivex Arena Leaderboard Banner */}
+        <TouchableOpacity
+          style={styles.arenaBanner}
+          onPress={() => router.push('/leaderboard')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.arenaBannerIconWrap}>
+            <Ionicons name="trophy" size={22} color="#D97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.arenaBannerTitle}>Bodivex Arena · Coach Rankings</Text>
+            <Text style={styles.arenaBannerSub}>
+              See the top-rated coaches in your city
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        {/* Top Trainers */}
+        {topTrainers.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🏆 Top in {city}</Text>
+              <TouchableOpacity onPress={() => router.push('/(client)/search')}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingRight: 24 }}>
+              {topTrainers.slice(0, 5).map((trainer) => (
+                <TrainerCard key={trainer.id} trainer={trainer} variant="compact" />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* AI Matched Trainers */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>✨ Matched for You</Text>
+            <TouchableOpacity onPress={() => router.push('/(client)/search')}>
+              <Text style={styles.seeAll}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          {isLoading ? (
+            <View style={styles.loadingPlaceholder}>
+              {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.skeletonCard} />
+              ))}
+            </View>
+          ) : trainers.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyText}>No trainers found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+            </View>
+          ) : (
+            <View style={styles.trainerList}>
+              {trainers.map((trainer) => (
+                <TrainerCard key={trainer.id} trainer={trainer} variant="full" />
+              ))}
             </View>
           )}
-
-          {/* Arena */}
-          <View style={[styles.px, { marginTop: 24 }]}>
-            <PressableScale onPress={() => router.push('/leaderboard')} accessibilityLabel="Coach rankings">
-              <Glass radius={T.radius.lg} style={styles.arena}>
-                <LinearGradient colors={[T.warning, T.accent2]} style={styles.arenaIcon}>
-                  <Ionicons name="trophy" size={18} color="#fff" />
-                </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={type.headline}>Coach rankings</Text>
-                  <Text style={type.caption}>Top-rated coaches in {city}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={T.text3} />
-              </Glass>
-            </PressableScale>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-      <CitySheet visible={cityOpen} city={city} onPick={setCity} onClose={() => setCityOpen(false)} />
-    </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const Legend = ({ color, label }: { color: string; label: string }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
-    <Text style={{ color: T.text3, fontSize: 11, fontWeight: '700' }}>{label}</Text>
-  </View>
-);
-
 const styles = StyleSheet.create({
-  px: { paddingHorizontal: 20 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8 },
-  cityPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 38 },
-  cityText: { color: T.text, fontSize: 14, fontWeight: '700' },
-  hero: { color: T.text, fontSize: 40, fontWeight: '900', letterSpacing: -1.4, lineHeight: 44, marginTop: 4 },
-  weekCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, marginTop: 20 },
-  legend: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 54, paddingLeft: 16, paddingRight: 8, marginTop: 14 },
-  searchBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: T.glassStrong, alignItems: 'center', justifyContent: 'center' },
-  bento: { flexDirection: 'row', gap: 10, height: 168 },
-  bentoBig: { flex: 1, borderRadius: T.radius.xl, padding: 16, justifyContent: 'space-between' },
-  bentoBigText: { color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
-  bentoSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', marginTop: 2 },
-  bentoSmall: { flex: 1, padding: 12, justifyContent: 'space-between' },
-  bentoIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  bentoSmallText: { color: T.text, fontSize: 14, fontWeight: '800' },
-  empty: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
-  arena: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  arenaIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  scrim: { flex: 1, backgroundColor: T.scrim, justifyContent: 'flex-end', padding: 12 },
-  sheet: { padding: 20, gap: 2, marginBottom: 12 },
-  cityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  cityRow: { paddingHorizontal: 20, marginBottom: 12 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  greeting: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary },
+  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
+  avatarBtn: { width: 44, height: 44 },
+  avatar: { width: 44, height: 44, borderRadius: 22 },
+  avatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginVertical: 10,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  searchPlaceholder: { flex: 1, fontSize: 14, color: COLORS.textMuted, fontWeight: '500' },
+  blueprintBanner: {
+    marginHorizontal: 20,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    shadowColor: COLORS.secondary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  blueprintTitle: { fontSize: 14, fontWeight: '800', color: COLORS.white },
+  blueprintSub: { fontSize: 12, color: '#94A3B8', marginTop: 2, maxWidth: 240 },
+  filtersScroll: { marginTop: 2 },
+  filtersContent: { paddingHorizontal: 20, gap: 8, paddingVertical: 8 },
+  filterChip: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary },
+  arenaBanner: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+  },
+  arenaBannerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  arenaBannerTitle: { fontSize: 13, fontWeight: '800', color: '#92400E' },
+  arenaBannerSub: { fontSize: 11, color: '#B45309', marginTop: 2, lineHeight: 15 },
+  section: { marginTop: 22 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
+  seeAll: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
+  trainerList: { paddingHorizontal: 20, gap: 14, paddingBottom: 24 },
+  loadingPlaceholder: { paddingHorizontal: 20, gap: 14 },
+  skeletonCard: {
+    height: 140,
+    borderRadius: 16,
+    backgroundColor: COLORS.shimmer,
+  },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyText: { fontSize: 16, fontWeight: '700', color: COLORS.textSecondary },
+  emptySubtext: { fontSize: 14, color: COLORS.textMuted },
 });

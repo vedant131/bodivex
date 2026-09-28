@@ -19,7 +19,6 @@ import { getClientSummaries } from '../../services/bookings';
 import { createScheduledCheckIn } from '../../services/chat';
 import { COLORS } from '../../constants/colors';
 import { ClientSummary } from '../../types/session';
-import { Screen } from '../../components/ui/Screen';
 
 export default function TrainerClientsScreen() {
   const { trainerProfile } = useAuthStore();
@@ -73,7 +72,7 @@ export default function TrainerClientsScreen() {
   };
 
   return (
-    <Screen preset="trainer" style={{ paddingBottom: 88 }} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Active Clients ({clients.length})</Text>
       </View>
@@ -127,7 +126,7 @@ export default function TrainerClientsScreen() {
                     })
                   }
                 >
-                  <Ionicons name="chatbubble-outline" size={14} color={COLORS.onColor} />
+                  <Ionicons name="chatbubble-outline" size={14} color={COLORS.white} />
                   <Text style={styles.quickChatText}>Chat</Text>
                 </TouchableOpacity>
                 )}
@@ -191,7 +190,7 @@ export default function TrainerClientsScreen() {
                   }
                 }}
               >
-                <Ionicons name="chatbubbles" size={18} color={COLORS.onColor} />
+                <Ionicons name="chatbubbles" size={18} color={COLORS.white} />
                 <Text style={styles.chatActionPrimaryText}>Open Chat</Text>
               </TouchableOpacity>
             </View>
@@ -232,14 +231,14 @@ export default function TrainerClientsScreen() {
           </View>
         </View>
       </Modal>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
@@ -250,7 +249,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 12 },
   center: { paddingVertical: 60, alignItems: 'center' },
   emptyCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     borderRadius: 18,
     padding: 36,
     alignItems: 'center',
@@ -261,7 +260,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
   emptySub: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18 },
   clientCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -277,7 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: { color: COLORS.onColor, fontSize: 19, fontWeight: '800' },
+  avatarText: { color: COLORS.white, fontSize: 19, fontWeight: '800' },
   clientName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   clientSince: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   totalRevenue: { fontSize: 17, fontWeight: '800', color: COLORS.success },
@@ -299,10 +298,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  quickChatText: { color: COLORS.onColor, fontSize: 12, fontWeight: '700' },
+  quickChatText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -346,7 +345,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  chatActionPrimaryText: { color: COLORS.onColor, fontWeight: '700', fontSize: 13 },
+  chatActionPrimaryText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
   checkInInput: {
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -374,5 +373,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  saveText: { color: COLORS.onColor, fontWeight: '700', fontSize: 14 },
+  saveText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
 });

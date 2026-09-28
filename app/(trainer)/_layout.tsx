@@ -1,10 +1,8 @@
-import { Redirect } from 'expo-router';
-import { Tabs } from 'expo-router/js-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { Tabs, Redirect } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useSessionAlerts } from '../../hooks/useSessionAlerts';
-import { GlassTabBar } from '../../components/ui/GlassTabBar';
-import { T } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/colors';
 
 export default function TrainerLayout() {
   const role = useAuthStore((s) => s.user?.role);
@@ -13,15 +11,27 @@ export default function TrainerLayout() {
 
   return (
     <Tabs
-      tabBar={(props) => <GlassTabBar {...props} />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: T.bg } }}
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.tabBarInactive,
+        tabBarStyle: {
+          backgroundColor: COLORS.white,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 4,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+      }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Today',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'flash' : 'flash-outline'} size={size} color={color} />
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="grid" size={size} color={color} />
           ),
         }}
       />
@@ -29,8 +39,8 @@ export default function TrainerLayout() {
         name="clients"
         options={{
           title: 'Clients',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />
@@ -38,8 +48,8 @@ export default function TrainerLayout() {
         name="chats"
         options={{
           title: 'Chats',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
           ),
         }}
       />
@@ -47,8 +57,8 @@ export default function TrainerLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

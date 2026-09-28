@@ -13,9 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
-import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export default function TrainerStep3() {
   const { trainerProfile, setTrainerProfile } = useAuthStore();
@@ -42,7 +41,7 @@ export default function TrainerStep3() {
   };
 
   return (
-    <Screen preset="trainer">
+    <SafeAreaView style={styles.container}>
       <OnboardingProgress current={3} total={TOTAL_STEPS} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -121,15 +120,15 @@ export default function TrainerStep3() {
           disabled={!isValid}
         >
           <Text style={styles.nextBtnText}>Continue to KYC & Bank</Text>
-          <Ionicons name="arrow-forward" size={20} color={COLORS.onColor} />
+          <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
         </TouchableOpacity>
       </ScrollView>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.card },
+  container: { flex: 1, backgroundColor: COLORS.white },
   scroll: { padding: 24, gap: 14 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, marginTop: 4 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
   priceInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -169,5 +168,5 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
+  nextBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
 });

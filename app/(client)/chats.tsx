@@ -16,7 +16,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { subscribeToChats } from '../../services/chat';
 import { COLORS } from '../../constants/colors';
 import { Chat } from '../../types/chat';
-import { Screen } from '../../components/ui/Screen';
 
 export default function ClientChatsScreen() {
   const { user } = useAuthStore();
@@ -83,7 +82,7 @@ export default function ClientChatsScreen() {
   };
 
   return (
-    <Screen preset="calm" style={{ paddingBottom: 88 }} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
       </View>
@@ -109,14 +108,14 @@ export default function ClientChatsScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
@@ -141,7 +140,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -155,7 +154,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.onColor, fontSize: 20, fontWeight: '700' },
+  avatarText: { color: COLORS.white, fontSize: 20, fontWeight: '700' },
   chatContent: { flex: 1, gap: 4 },
   chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
@@ -170,5 +169,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginLeft: 8,
   },
-  unreadText: { color: COLORS.onColor, fontSize: 11, fontWeight: '700' },
+  unreadText: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
 });

@@ -16,7 +16,6 @@ import { logout as signOutUser } from '../../services/auth';
 import { COLORS } from '../../constants/colors';
 import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel } from '../../types/user';
-import { Screen } from '../../components/ui/Screen';
 
 export default function ClientProfileScreen() {
   const { user, clientProfile } = useAuthStore();
@@ -49,7 +48,7 @@ export default function ClientProfileScreen() {
   };
 
   return (
-    <Screen preset="calm" style={{ paddingBottom: 88 }} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
         <View style={styles.headerCard}>
@@ -136,7 +135,7 @@ export default function ClientProfileScreen() {
               onPress={() => router.push('/onboarding/client/blueprint')}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.blueprintTitle}>Personalized strategy</Text>
+                <Text style={styles.blueprintTitle}>🤖 Personalized Strategy</Text>
                 <Text style={styles.blueprintSub} numberOfLines={2}>
                   {clientProfile.fitnessBlueprint.trainerType} · {clientProfile.fitnessBlueprint.estimatedTimeline}
                 </Text>
@@ -176,14 +175,14 @@ export default function ClientProfileScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   headerCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -199,7 +198,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.onColor, fontSize: 26, fontWeight: '800' },
+  avatarText: { color: COLORS.white, fontSize: 26, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary },
   phone: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' },
@@ -221,7 +220,7 @@ const styles = StyleSheet.create({
   },
   kycBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.success },
   section: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     marginTop: 12,
     padding: 18,
     borderTopWidth: 1,

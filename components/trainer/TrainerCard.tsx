@@ -1,113 +1,276 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { PressableScale } from '../ui/PressableScale';
-import { Glass } from '../ui/Glass';
-import { Avatar } from '../ui/Bits';
-import { T, type } from '../../constants/theme';
+import { COLORS } from '../../constants/colors';
 import { TrainerProfile } from '../../types/trainer';
 
 interface Props {
   trainer: TrainerProfile;
-  /** 'compact' = tall portrait card for carousels, 'full' = glass list row */
   variant: 'full' | 'compact';
 }
 
-const fromPrice = (t: TrainerProfile) =>
-  Math.min(...[t.pricingOnline, t.pricingOffline].filter((p): p is number => !!p));
-
-const open = (t: TrainerProfile) => router.push(`/trainer/${t.id}`);
-
 export function TrainerCard({ trainer, variant }: Props) {
-  const price = fromPrice(trainer);
-  const rating = trainer.totalReviews > 0 ? trainer.rating.toFixed(1) : 'New';
+  const handlePress = () => router.push(`/trainer/${trainer.id}`);
 
   if (variant === 'compact') {
     return (
-      <PressableScale onPress={() => open(trainer)} style={styles.portrait} accessibilityLabel={`${trainer.name}, ${rating}, from ₹${price}`}>
-        {trainer.profilePhoto ? (
-          <Image source={{ uri: trainer.profilePhoto }} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} />
-        ) : (
-          <Avatar name={trainer.name} size={170} radius={0} style={StyleSheet.absoluteFill} />
-        )}
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={styles.fade} />
-        {trainer.isAvailableNow && (
-          <View style={styles.openBadge}>
-            <View style={styles.openDot} />
-            <Text style={styles.openText}>Open</Text>
-          </View>
-        )}
-        <Glass variant="clear" radius={16} style={styles.tag}>
-          <Text style={styles.tagName} numberOfLines={1}>{trainer.name}</Text>
-          <View style={styles.tagRow}>
-            <Ionicons name="star" size={11} color={T.star} />
-            <Text style={styles.tagMeta}>{rating}</Text>
-            <Text style={styles.tagPrice}>₹{price}</Text>
-          </View>
-        </Glass>
-      </PressableScale>
+      <TouchableOpacity style={styles.compactCard} onPress={handlePress} activeOpacity={0.85}>
+        {/* Photo */}
+        <View style={styles.compactPhotoContainer}>
+          {trainer.profilePhoto ? (
+            <Image source={{ uri: trainer.profilePhoto }} style={styles.compactPhoto} contentFit="cover" />
+          ) : (
+            <View style={styles.compactPhotoPlaceholder}>
+              <Ionicons name="person" size={28} color={COLORS.textMuted} />
+            </View>
+          )}
+          {trainer.isAvailableNow && <View style={styles.availableDot} />}
+        </View>
+        {/* Info */}
+        <Text style={styles.compactName} numberOfLines={1}>{trainer.name}</Text>
+        <View style={styles.compactRating}>
+          <Ionicons name="star" size={12} color="#FFB300" />
+          <Text style={styles.compactRatingText}>{trainer.rating.toFixed(1)}</Text>
+        </View>
+        <Text style={styles.compactPrice}>
+          {trainer.pricingOnline
+            ? `₹${trainer.pricingOnline}/hr`
+            : trainer.pricingOffline
+            ? `₹${trainer.pricingOffline}/hr`
+            : 'View Profile'}
+        </Text>
+      </TouchableOpacity>
     );
   }
 
+  // Full card
   return (
-    <PressableScale onPress={() => open(trainer)} accessibilityLabel={`${trainer.name}, ${rating}, from ₹${price}`}>
-      <Glass radius={T.radius.lg} style={styles.row}>
-        <View>
-          <Avatar uri={trainer.profilePhoto} name={trainer.name} size={62} radius={18} />
-          {trainer.isAvailableNow && <View style={styles.rowDot} />}
+    <TouchableOpacity style={styles.fullCard} onPress={handlePress} activeOpacity={0.85}>
+      <View style={styles.fullCardRow}>
+        {/* Photo */}
+        <View style={styles.fullPhotoContainer}>
+          {trainer.profilePhoto ? (
+            <Image source={{ uri: trainer.profilePhoto }} style={styles.fullPhoto} contentFit="cover" />
+          ) : (
+            <View style={styles.fullPhotoPlaceholder}>
+              <Ionicons name="person" size={36} color={COLORS.textMuted} />
+            </View>
+          )}
+          {trainer.isAvailableNow && (
+            <View style={styles.availableBadge}>
+              <Text style={styles.availableBadgeText}>Now</Text>
+            </View>
+          )}
         </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={type.headline} numberOfLines={1}>{trainer.name}</Text>
-          <Text style={type.caption} numberOfLines={1}>
-            {trainer.specializations.slice(0, 2).join(' · ') || 'Personal trainer'}
+
+        {/* Details */}
+        <View style={styles.fullCardDetails}>
+          <View style={styles.fullCardHeader}>
+            <Text style={styles.fullName} numberOfLines={1}>{trainer.name}</Text>
+            {trainer.isKYCApproved && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="shield-checkmark" size={12} color={COLORS.success} />
+                <Text style={styles.verifiedBadgeText}>Verified</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.ratingRow}>
+            <View style={styles.ratingPill}>
+              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Text style={styles.ratingText}>{trainer.rating.toFixed(1)}</Text>
+            </View>
+            <Text style={styles.reviewCount}>({trainer.totalReviews} reviews)</Text>
+            <View style={styles.dot} />
+            <Text style={styles.sessionsText}>{trainer.totalSessions}+ sessions</Text>
+          </View>
+
+          <Text style={styles.cityText}>
+            <Ionicons name="location" size={12} color={COLORS.textMuted} /> {trainer.city}
+            {' · '}{trainer.experience} yr{trainer.experience !== 1 ? 's' : ''} exp
           </Text>
-          <View style={styles.metaRow}>
-            <Ionicons name="star" size={12} color={T.star} />
-            <Text style={styles.meta}>{rating}{trainer.totalReviews > 0 ? ` (${trainer.totalReviews})` : ''}</Text>
-            <Text style={styles.metaSep}>•</Text>
-            <Text style={styles.meta}>{trainer.experience} yrs</Text>
-            {trainer.sessionPreference !== 'offline' && (
-              <>
-                <Text style={styles.metaSep}>•</Text>
-                <Ionicons name="videocam" size={12} color={T.text2} />
-              </>
+
+          {/* Specializations */}
+          <View style={styles.specRow}>
+            {trainer.specializations.slice(0, 2).map((s) => (
+              <View key={s} style={styles.specChip}>
+                <Text style={styles.specText}>{s}</Text>
+              </View>
+            ))}
+            {trainer.specializations.length > 2 && (
+              <Text style={styles.moreSpec}>+{trainer.specializations.length - 2}</Text>
             )}
           </View>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.price}>₹{price}</Text>
-          <Text style={type.caption}>/session</Text>
+      </View>
+
+      {/* Pricing & Booking Action Row */}
+      <View style={styles.pricingRow}>
+        <View style={styles.pricingStack}>
+          {trainer.pricingOnline ? (
+            <View style={styles.pricingItem}>
+              <Ionicons name="videocam" size={13} color={COLORS.primary} />
+              <Text style={styles.pricingText}>₹{trainer.pricingOnline}<Text style={styles.pricingUnit}>/online</Text></Text>
+            </View>
+          ) : null}
+          {trainer.pricingOffline ? (
+            <View style={styles.pricingItem}>
+              <Ionicons name="barbell" size={13} color={COLORS.textSecondary} />
+              <Text style={styles.pricingText}>₹{trainer.pricingOffline}<Text style={styles.pricingUnit}>/in-person</Text></Text>
+            </View>
+          ) : null}
         </View>
-      </Glass>
-    </PressableScale>
+
+        <TouchableOpacity style={styles.bookBtn} onPress={handlePress} activeOpacity={0.85}>
+          <Text style={styles.bookBtnText}>View Coach</Text>
+          <Ionicons name="chevron-forward" size={14} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  portrait: { width: 160, height: 220, borderRadius: 24, overflow: 'hidden', backgroundColor: T.bgRaised },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '45%' },
-  openBadge: {
-    position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 99, paddingHorizontal: 8, height: 22,
+  // Compact
+  compactCard: {
+    width: 140,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 6,
+    marginLeft: 20,
   },
-  openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.ring2 },
-  openText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  tag: { position: 'absolute', left: 8, right: 8, bottom: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  tagName: { color: T.text, fontSize: 14, fontWeight: '800' },
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  tagMeta: { color: T.text2, fontSize: 11, fontWeight: '700', flex: 1 },
-  tagPrice: { color: T.text, fontSize: 13, fontWeight: '800' },
+  compactPhotoContainer: { position: 'relative', width: 56, height: 56 },
+  compactPhoto: { width: 56, height: 56, borderRadius: 28 },
+  compactPhotoPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactName: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
+  compactRating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  compactRatingText: { fontSize: 12, fontWeight: '600', color: COLORS.textPrimary },
+  compactPrice: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
 
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12 },
-  rowDot: {
-    position: 'absolute', right: -2, top: -2, width: 14, height: 14, borderRadius: 7,
-    backgroundColor: T.ring2, borderWidth: 3, borderColor: T.bg,
+  // Full
+  fullCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
-  meta: { color: T.text2, fontSize: 12, fontWeight: '700' },
-  metaSep: { color: T.text3, fontSize: 10 },
-  price: { color: T.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  fullCardRow: { flexDirection: 'row', gap: 14 },
+  fullPhotoContainer: { position: 'relative' },
+  fullPhoto: { width: 80, height: 80, borderRadius: 16 },
+  fullPhotoPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  availableDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.success,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  availableBadge: {
+    position: 'absolute',
+    bottom: -4,
+    left: '50%',
+    transform: [{ translateX: -16 }],
+    backgroundColor: COLORS.success,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  availableBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.white },
+  fullCardDetails: { flex: 1, gap: 6 },
+  fullCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fullName: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, flex: 1 },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: `${COLORS.success}15`,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.success },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  ratingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ratingText: { fontSize: 12, fontWeight: '800', color: '#92400E' },
+  reviewCount: { fontSize: 12, color: COLORS.textMuted },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: COLORS.textMuted },
+  sessionsText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  cityText: { fontSize: 12, color: COLORS.textSecondary },
+  specRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
+  specChip: {
+    backgroundColor: `${COLORS.primary}12`,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  specText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
+  moreSpec: { fontSize: 11, color: COLORS.textMuted, alignSelf: 'center', fontWeight: '600' },
+  pricingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  pricingStack: { gap: 3 },
+  pricingItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pricingText: { fontSize: 13, color: COLORS.textPrimary, fontWeight: '800' },
+  pricingUnit: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
+  bookBtn: {
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  bookBtnText: { color: COLORS.white, fontSize: 13, fontWeight: '800' },
 });

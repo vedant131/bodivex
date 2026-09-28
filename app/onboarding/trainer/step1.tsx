@@ -19,9 +19,8 @@ import { useAuthStore } from '../../../stores/authStore';
 import { CityPicker } from '../../../components/shared/CityPicker';
 import { SwitchAccountLink } from '../../../components/shared/SwitchAccountLink';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
-import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export default function TrainerStep1() {
   const { trainerProfile, setTrainerProfile } = useAuthStore();
@@ -58,7 +57,7 @@ export default function TrainerStep1() {
   };
 
   return (
-    <Screen preset="trainer">
+    <SafeAreaView style={styles.container}>
       <OnboardingProgress current={1} total={TOTAL_STEPS} />
       <SwitchAccountLink />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -121,16 +120,16 @@ export default function TrainerStep1() {
             disabled={!isValid}
           >
             <Text style={styles.nextBtnText}>Continue</Text>
-            <Ionicons name="arrow-forward" size={20} color={COLORS.onColor} />
+            <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.card },
+  container: { flex: 1, backgroundColor: COLORS.white },
   scroll: { padding: 24, gap: 12 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, marginTop: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
@@ -171,5 +170,5 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
+  nextBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
 });

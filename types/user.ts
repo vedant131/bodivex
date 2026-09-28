@@ -29,12 +29,12 @@ export enum FitnessGoal {
 }
 
 export const FitnessGoalLabel: Record<FitnessGoal, string> = {
-  [FitnessGoal.WEIGHT_LOSS]: 'Lose Weight',
-  [FitnessGoal.MUSCLE_GAIN]: 'Build Muscle',
-  [FitnessGoal.ENDURANCE]: 'Improve Stamina',
-  [FitnessGoal.FLEXIBILITY]: 'Flexibility & Mobility',
-  [FitnessGoal.DIET_ONLY]: 'Diet Plan Only',
-  [FitnessGoal.GENERAL_FITNESS]: 'General Fitness',
+  [FitnessGoal.WEIGHT_LOSS]: '🔥 Lose Weight',
+  [FitnessGoal.MUSCLE_GAIN]: '💪 Build Muscle',
+  [FitnessGoal.ENDURANCE]: '🏃 Improve Stamina',
+  [FitnessGoal.FLEXIBILITY]: '🧘 Flexibility & Mobility',
+  [FitnessGoal.DIET_ONLY]: '🥗 Diet Plan Only',
+  [FitnessGoal.GENERAL_FITNESS]: '⚡ General Fitness',
 };
 
 export interface FitnessBlueprint {

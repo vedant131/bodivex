@@ -23,7 +23,6 @@ import {
 import { COLORS } from '../../constants/colors';
 import { openVideoCall } from '../../services/video';
 import { Session } from '../../types/session';
-import { Screen } from '../../components/ui/Screen';
 
 type FilterTab = 'upcoming' | 'completed' | 'all';
 
@@ -77,7 +76,7 @@ export default function ClientSessionsScreen() {
   };
 
   return (
-    <Screen preset="calm" style={{ paddingBottom: 88 }} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Sessions</Text>
       </View>
@@ -156,11 +155,11 @@ export default function ClientSessionsScreen() {
                       ]}
                     >
                       {isPending
-                        ? 'Waiting for coach'
+                        ? '⏳ Waiting Accept'
                         : isConfirmed
-                        ? 'Confirmed'
+                        ? '✅ Confirmed'
                         : isCompleted
-                        ? 'Completed'
+                        ? '🏆 Completed'
                         : session.status}
                     </Text>
                   </View>
@@ -214,7 +213,7 @@ export default function ClientSessionsScreen() {
                       style={styles.joinCallBtn}
                       onPress={() => openVideoCall(session.videoCallRoomId)}
                     >
-                      <Ionicons name="videocam" size={16} color={COLORS.onColor} />
+                      <Ionicons name="videocam" size={16} color={COLORS.white} />
                       <Text style={styles.joinCallText}>Join Live Call</Text>
                     </TouchableOpacity>
                   )}
@@ -279,14 +278,14 @@ export default function ClientSessionsScreen() {
         </View>
       </Modal>
 
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
@@ -296,7 +295,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -311,7 +310,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: COLORS.primary },
   tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.onColor, fontWeight: '700' },
+  tabTextActive: { color: COLORS.white, fontWeight: '700' },
   list: { padding: 16, gap: 14 },
   center: { paddingVertical: 60, alignItems: 'center' },
   emptyContainer: { paddingVertical: 60, alignItems: 'center', gap: 10, paddingHorizontal: 30 },
@@ -324,9 +323,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
   },
-  bookBtnText: { color: COLORS.onColor, fontWeight: '700', fontSize: 14 },
+  bookBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
@@ -344,7 +343,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarText: { color: COLORS.onColor, fontSize: 18, fontWeight: '700' },
+  avatarText: { color: COLORS.white, fontSize: 18, fontWeight: '700' },
   trainerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   sessionDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
@@ -382,17 +381,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
-  joinCallText: { color: COLORS.onColor, fontWeight: '700', fontSize: 13 },
+  joinCallText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
   releaseBtn: {
     backgroundColor: COLORS.success,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
   },
-  releaseBtnText: { color: COLORS.onColor, fontWeight: '700', fontSize: 13 },
+  releaseBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
   modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -418,7 +417,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  confirmReleaseText: { color: COLORS.onColor, fontSize: 16, fontWeight: '700' },
+  confirmReleaseText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
   cancelBtn: {
     height: 48,
     borderRadius: 14,

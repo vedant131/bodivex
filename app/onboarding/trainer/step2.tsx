@@ -15,9 +15,8 @@ import { useAuthStore } from '../../../stores/authStore';
 import { SPECIALIZATIONS } from '../../../types/trainer';
 import { SessionPreference } from '../../../types/user';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
-import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export default function TrainerStep2() {
   const { trainerProfile, setTrainerProfile } = useAuthStore();
@@ -59,7 +58,7 @@ export default function TrainerStep2() {
   };
 
   return (
-    <Screen preset="trainer">
+    <SafeAreaView style={styles.container}>
       <OnboardingProgress current={2} total={TOTAL_STEPS} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -81,7 +80,7 @@ export default function TrainerStep2() {
                 onPress={() => toggleSpec(s)}
               >
                 <Text style={[styles.specText, active && styles.specTextActive]}>{s}</Text>
-                {active && <Ionicons name="checkmark" size={14} color={COLORS.onColor} />}
+                {active && <Ionicons name="checkmark" size={14} color={COLORS.white} />}
               </TouchableOpacity>
             );
           })}
@@ -103,7 +102,7 @@ export default function TrainerStep2() {
               <Ionicons
                 name={m.icon as any}
                 size={20}
-                color={sessionPref === m.value ? COLORS.onColor : COLORS.textSecondary}
+                color={sessionPref === m.value ? COLORS.white : COLORS.textSecondary}
               />
               <Text style={[styles.modeText, sessionPref === m.value && styles.modeTextActive]}>
                 {m.label}
@@ -141,15 +140,15 @@ export default function TrainerStep2() {
           disabled={selectedSpecs.length === 0}
         >
           <Text style={styles.nextBtnText}>Continue to Pricing</Text>
-          <Ionicons name="arrow-forward" size={20} color={COLORS.onColor} />
+          <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
         </TouchableOpacity>
       </ScrollView>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.card },
+  container: { flex: 1, backgroundColor: COLORS.white },
   scroll: { padding: 24, gap: 14 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, marginTop: 4 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 4 },
@@ -168,7 +167,7 @@ const styles = StyleSheet.create({
   },
   specChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   specText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  specTextActive: { color: COLORS.onColor },
+  specTextActive: { color: COLORS.white },
   modeRow: { gap: 10 },
   modeBtn: {
     flexDirection: 'row',
@@ -182,7 +181,7 @@ const styles = StyleSheet.create({
   },
   modeBtnActive: { backgroundColor: COLORS.secondary, borderColor: COLORS.secondary },
   modeText: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
-  modeTextActive: { color: COLORS.onColor },
+  modeTextActive: { color: COLORS.white },
   gymCard: {
     backgroundColor: COLORS.background,
     padding: 16,
@@ -202,7 +201,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: COLORS.textPrimary,
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.white,
   },
   nextBtn: {
     backgroundColor: COLORS.primary,
@@ -215,5 +214,5 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
+  nextBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
 });

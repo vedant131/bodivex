@@ -7,17 +7,16 @@ import { COLORS } from '../../../constants/colors';
 import { useAuthStore } from '../../../stores/authStore';
 import { FitnessGoal, FitnessGoalLabel, SessionPreference, BudgetRange, BudgetRangeLabel } from '../../../types/user';
 import { OnboardingProgress } from '../../../components/shared/OnboardingProgress';
-import { Screen } from '../../../components/ui/Screen';
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 7;
 
-const GOALS: { value: FitnessGoal; icon: keyof typeof Ionicons.glyphMap; label: string; desc: string }[] = [
-  { value: FitnessGoal.WEIGHT_LOSS, icon: 'flame', label: 'Lose Weight', desc: 'Burn fat, get leaner' },
-  { value: FitnessGoal.MUSCLE_GAIN, icon: 'barbell', label: 'Build Muscle', desc: 'Get stronger & bigger' },
-  { value: FitnessGoal.ENDURANCE, icon: 'walk', label: 'Improve Stamina', desc: 'Run farther, breathe easier' },
-  { value: FitnessGoal.FLEXIBILITY, icon: 'body', label: 'Flexibility', desc: 'Mobility & stretching' },
-  { value: FitnessGoal.DIET_ONLY, icon: 'nutrition', label: 'Diet Plan Only', desc: 'Just need nutrition guidance' },
-  { value: FitnessGoal.GENERAL_FITNESS, icon: 'flash', label: 'General Fitness', desc: 'Overall health & lifestyle' },
+const GOALS: { value: FitnessGoal; emoji: string; label: string; desc: string }[] = [
+  { value: FitnessGoal.WEIGHT_LOSS, emoji: '🔥', label: 'Lose Weight', desc: 'Burn fat, get leaner' },
+  { value: FitnessGoal.MUSCLE_GAIN, emoji: '💪', label: 'Build Muscle', desc: 'Get stronger & bigger' },
+  { value: FitnessGoal.ENDURANCE, emoji: '🏃', label: 'Improve Stamina', desc: 'Run farther, breathe easier' },
+  { value: FitnessGoal.FLEXIBILITY, emoji: '🧘', label: 'Flexibility', desc: 'Mobility & stretching' },
+  { value: FitnessGoal.DIET_ONLY, emoji: '🥗', label: 'Diet Plan Only', desc: 'Just need nutrition guidance' },
+  { value: FitnessGoal.GENERAL_FITNESS, emoji: '⚡', label: 'General Fitness', desc: 'Overall health & lifestyle' },
 ];
 
 const SESSION_PREFS: { value: SessionPreference; icon: string; label: string; desc: string }[] = [
@@ -58,7 +57,7 @@ export default function ClientStep3() {
   };
 
   return (
-    <Screen preset="calm">
+    <SafeAreaView style={styles.container}>
       <OnboardingProgress current={3} total={TOTAL_STEPS} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -79,12 +78,12 @@ export default function ClientStep3() {
                 onPress={() => toggleGoal(g.value)}
                 activeOpacity={0.75}
               >
-                <Ionicons name={g.icon} size={26} color={COLORS.textPrimary} />
+                <Text style={styles.goalEmoji}>{g.emoji}</Text>
                 <Text style={[styles.goalLabel, selected && styles.goalLabelSelected]}>{g.label}</Text>
                 <Text style={styles.goalDesc}>{g.desc}</Text>
                 {selected && (
                   <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark" size={12} color={COLORS.onColor} />
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -138,15 +137,15 @@ export default function ClientStep3() {
           onPress={handleNext}
           disabled={!isValid}
         >
-          <Text style={styles.nextBtnText}>Generate my blueprint</Text>
+          <Text style={styles.nextBtnText}>Generate My Blueprint ✨</Text>
         </TouchableOpacity>
       </ScrollView>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.card },
+  container: { flex: 1, backgroundColor: COLORS.white },
   scroll: { padding: 24, gap: 12 },
   backBtn: { marginBottom: 8 },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary },
@@ -214,5 +213,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   nextBtnDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.5 },
-  nextBtnText: { color: COLORS.onColor, fontSize: 17, fontWeight: '700' },
+  nextBtnText: { color: COLORS.white, fontSize: 17, fontWeight: '700' },
 });
