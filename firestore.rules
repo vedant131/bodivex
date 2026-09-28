@@ -43,6 +43,11 @@ service cloud.firestore {
       allow update: if isUser(uid)
         && !changed().hasAny(['isKYCApproved', 'kycStatus', 'rating', 'totalReviews', 'totalSessions', 'userId', 'leadCount', 'feesPaid']);
 
+      // Social handles: owner only. acceptBooking copies them onto the session for the client.
+      match /private/{docId} {
+        allow read, write: if isUser(uid);
+      }
+
       // New-client fee ledger — written only by the acceptBooking function
       match /leads/{clientId} {
         allow read: if isUser(uid);

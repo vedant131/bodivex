@@ -1,4 +1,4 @@
-import { SessionPreference } from './user';
+import { SessionPreference, AthleteLevel } from './user';
 
 export type AvailabilityStatus = 'available_now' | 'busy' | 'offline';
 
@@ -53,6 +53,8 @@ export interface TrainerProfile {
   isKYCApproved: boolean;
   kycStatus: 'not_started' | 'pending' | 'under_review' | 'approved' | 'rejected';
   languages: string[];
+  coachesLevels?: AthleteLevel[]; // who they coach; missing = enthusiasts
+  federations?: string[];         // federations they've prepped athletes for
   city: string;
   state: string;
   createdAt: Date;
@@ -85,6 +87,8 @@ export interface TrainerFilter {
   gymName?: string;
   budgetRange?: string;
   searchQuery?: string;
+  /** Only coaches who train this level (competitive / pro athletes) */
+  athleteLevel?: 'competitive' | 'pro';
 }
 
 export interface TrainerReview {
@@ -128,6 +132,16 @@ export const SPECIALIZATIONS = [
   'Senior Fitness',
   'CrossFit',
   'Calisthenics',
+  'Contest Prep',
+  'Posing',
+  'Powerlifting',
 ] as const;
+
+/** Trainer socials are private: stored at trainers/{uid}/private/social and copied onto a
+ *  session only when the trainer accepts it (keeps first contact inside Bodivex). */
+export interface TrainerSocial {
+  instagram?: string;
+  youtube?: string;
+}
 
 export type Specialization = typeof SPECIALIZATIONS[number];

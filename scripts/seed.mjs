@@ -82,6 +82,8 @@ for (const [i, t] of TRAINERS.entries()) {
     pricingOffline: t.offline,
     sessionPreference: t.pref,
     languages: ['English', 'Hindi', 'Marathi'],
+    coachesLevels: i === 0 || i === 6 ? ['enthusiast', 'competitive', 'pro'] : ['enthusiast'],
+    federations: i === 0 ? ['IFBB Pro', 'NPC'] : i === 6 ? ['IFBB'] : [],
     ...(t.gym !== 'Online' && { gymLocation: { name: t.gym, address: `${t.gym}, ${t.city}`, latitude: 0, longitude: 0, city: t.city, state: 'Maharashtra' } }),
     rating: t.rating,
     totalReviews: t.reviews,
@@ -94,6 +96,7 @@ for (const [i, t] of TRAINERS.entries()) {
     updatedAt: FieldValue.serverTimestamp(),
   };
   await db.doc(`trainers/${uid}`).set(JSON.parse(JSON.stringify(trainer)), { merge: false });
+  if (i === 0) await db.doc(`trainers/${uid}/private/social`).set({ instagram: 'arjun.fitness', youtube: 'arjuntrains' });
 
   if (i === 0) {
     await db.collection('qa').add({

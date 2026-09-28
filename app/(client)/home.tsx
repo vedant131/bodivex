@@ -70,6 +70,7 @@ export default function HomeScreen() {
       city,
       specializations: clientProfile?.fitnessBlueprint?.recommendedFilters?.specializations,
       sessionPreference: clientProfile?.sessionPreference,
+      athleteLevel: clientProfile?.athleteLevel && clientProfile.athleteLevel !== 'enthusiast' ? clientProfile.athleteLevel : undefined,
     });
     fetchTopTrainers(city);
   }, [city, clientProfile]);

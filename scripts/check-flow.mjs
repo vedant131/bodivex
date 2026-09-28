@@ -57,6 +57,7 @@ await admin.doc(`trainers/${trainer.uid}`).set({
   rating: 0, totalReviews: 0, totalSessions: 0, isKYCApproved: true, kycStatus: 'approved',
   isAvailableNow: true, sessionPreference: 'both', pricingOnline: 499,
 });
+await admin.doc(`trainers/${trainer.uid}/private/social`).set({ instagram: 'check.coach' });
 const accept = (sessionId, payment) =>
   httpsCallable(trainer.fns, 'acceptBooking')({ sessionId, ...(payment && { payment }) })
     .then((r) => r.data)
@@ -132,8 +133,11 @@ await denied(addDoc(collection(client.db, 'chats', first.chatId, 'messages'), {
   senderId: client.uid, type: 'text', text: 'hi',
 }), 'messaging before trainer accepts');
 
+await denied(getDoc(doc(client.db, 'trainers', trainer.uid, 'private', 'social')), "client reading trainer's socials before booking");
 assert.equal((await accept(first.id)).fee, 0);
 ok('new client #1 accepted free');
+assert.equal((await getDoc(doc(client.db, 'sessions', first.id))).data().trainerSocial?.instagram, 'check.coach');
+ok('socials revealed to client only after acceptance');
 await addDoc(collection(client.db, 'chats', first.chatId, 'messages'), {
   senderId: client.uid, type: 'text', text: 'See you tomorrow!', read: false, timestamp: serverTimestamp(),
 });

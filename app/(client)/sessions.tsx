@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
@@ -127,6 +127,14 @@ export default function ClientSessionsScreen() {
                     {confirmed && s.chatId && (
                       <IconButton icon="chatbubble-ellipses" label="Chat" size={42}
                         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: s.chatId!, name: s.trainerName, photo: s.trainerPhoto } })} />
+                    )}
+                    {confirmed && s.trainerSocial?.instagram && (
+                      <IconButton icon="logo-instagram" label={`${s.trainerName} on Instagram`} size={42}
+                        onPress={() => Linking.openURL(`https://instagram.com/${s.trainerSocial!.instagram}`)} />
+                    )}
+                    {confirmed && s.trainerSocial?.youtube && (
+                      <IconButton icon="logo-youtube" label={`${s.trainerName} on YouTube`} size={42}
+                        onPress={() => Linking.openURL(`https://youtube.com/@${s.trainerSocial!.youtube}`)} />
                     )}
                     {confirmed && s.type === 'online' && (
                       <Button title="Join call" icon="videocam" variant="glass" size="sm" onPress={() => openVideoCall(s.videoCallRoomId)} />

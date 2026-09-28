@@ -27,6 +27,8 @@ export default function SearchScreen() {
   const params = useLocalSearchParams<{ spec?: string }>();
   const { trainers, isLoading, fetchTrainers } = useTrainerStore();
   const city = useAuthStore((s) => s.clientProfile?.city ?? 'Mumbai');
+  const myLevel = useAuthStore((s) => s.clientProfile?.athleteLevel);
+  const [athletes, setAthletes] = useState(!!myLevel && myLevel !== 'enthusiast');
 
   const [q, setQ] = useState('');
   const [spec, setSpec] = useState<string | null>(params.spec ?? null);
@@ -40,8 +42,9 @@ export default function SearchScreen() {
       city: mode === 'online' ? undefined : city,
       specializations: spec ? [spec] : undefined,
       sessionPreference: mode === 'all' ? undefined : mode,
+      athleteLevel: athletes ? (myLevel === 'pro' ? 'pro' : 'competitive') : undefined,
     });
-  }, [spec, mode, city]);
+  }, [spec, mode, city, athletes]);
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -75,6 +78,7 @@ export default function SearchScreen() {
           </Glass>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <Chip label={myLevel === 'pro' ? 'Coaches pros' : 'Athlete coaches'} icon="medal" active={athletes} onPress={() => setAthletes(!athletes)} />
             {(['all', 'online', 'offline'] as Mode[]).map((m) => (
               <Chip
                 key={m}

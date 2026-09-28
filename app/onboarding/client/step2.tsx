@@ -6,7 +6,8 @@ import { OnboardingShell } from '../../../components/ui/OnboardingShell';
 import { Field, Input, Tile } from '../../../components/ui/Form';
 import { Glass } from '../../../components/ui/Glass';
 import { T, type } from '../../../constants/theme';
-import { FitnessLevel } from '../../../types/user';
+import { FitnessLevel, SPORTS, FEDERATIONS } from '../../../types/user';
+import { Chip } from '../../../components/ui/Bits';
 
 const LEVELS: { value: FitnessLevel; label: string; desc: string; icon: 'leaf' | 'barbell' | 'trophy' }[] = [
   { value: 'beginner', label: 'Beginner', desc: 'Just starting out', icon: 'leaf' },
@@ -21,10 +22,14 @@ export default function ClientStep2() {
   const [level, setLevel] = useState<FitnessLevel>(clientProfile?.fitnessLevel ?? 'beginner');
   const [goesToGym, setGoesToGym] = useState(clientProfile?.currentlyGoesToGym ?? false);
   const [gymName, setGymName] = useState(clientProfile?.gymName ?? '');
+  const athlete = (clientProfile?.athleteLevel ?? 'enthusiast') !== 'enthusiast';
+  const [sport, setSport] = useState(clientProfile?.sport ?? '');
+  const [federation, setFederation] = useState(clientProfile?.federation ?? '');
+  const [nextComp, setNextComp] = useState(clientProfile?.nextCompetition ?? '');
 
   const h = Number(height);
   const w = Number(weight);
-  const valid = h >= 100 && h <= 250 && w >= 25 && w <= 300;
+  const valid = h >= 100 && h <= 250 && w >= 25 && w <= 300 && (!athlete || !!sport);
 
   const next = () => {
     setClientProfile({
@@ -35,6 +40,9 @@ export default function ClientStep2() {
       fitnessLevel: level,
       currentlyGoesToGym: goesToGym,
       gymName: goesToGym && gymName.trim() ? gymName.trim() : undefined,
+      sport: athlete ? sport : undefined,
+      federation: athlete && federation ? federation : undefined,
+      nextCompetition: athlete && nextComp.trim() ? nextComp.trim() : undefined,
     });
     router.push('/onboarding/client/step3');
   };
@@ -53,6 +61,24 @@ export default function ClientStep2() {
           </Field>
         </View>
       </View>
+
+      {athlete && (
+        <>
+          <Field label="Your sport">
+            <View style={styles.wrap}>
+              {SPORTS.map((s) => <Chip key={s} label={s} active={sport === s} onPress={() => setSport(s)} />)}
+            </View>
+          </Field>
+          <Field label="Federation (optional)">
+            <View style={styles.wrap}>
+              {FEDERATIONS.map((f) => <Chip key={f} label={f} active={federation === f} onPress={() => setFederation(federation === f ? '' : f)} />)}
+            </View>
+          </Field>
+          <Field label="Next competition (optional)">
+            <Input value={nextComp} onChangeText={setNextComp} placeholder="e.g. IFBB Pro Mumbai Classic, Feb 2027" />
+          </Field>
+        </>
+      )}
 
       <Field label="Fitness level">
         <View style={styles.grid}>
@@ -78,5 +104,6 @@ export default function ClientStep2() {
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   gymRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
 });

@@ -44,7 +44,8 @@ exports.acceptBooking = onCall(async (req) => {
     if (!trainer?.isKYCApproved) throw new HttpsError('permission-denied', 'Your profile is not approved yet.');
 
     const leadRef = trainerRef.collection('leads').doc(s.clientId);
-    const leadSnap = await tx.get(leadRef);
+    const [leadSnap, socialSnap] = await Promise.all([tx.get(leadRef), tx.get(trainerRef.collection('private').doc('social'))]);
+    const social = socialSnap.data();
     const isNewClient = !leadSnap.exists;
     const fee = isNewClient && (trainer.leadCount ?? 0) >= FREE_CLIENTS ? NEW_CLIENT_FEE : 0;
 
@@ -78,6 +79,8 @@ exports.acceptBooking = onCall(async (req) => {
       updatedAt: FieldValue.serverTimestamp(),
       // Note: free Jitsi room until Agora (needs a dev build) replaces it
       ...(s.type === 'online' && { videoCallRoomId: `bodivex-${randomBytes(9).toString('hex')}` }),
+      // Socials are revealed only now that the client is booked in
+      ...(social && (social.instagram || social.youtube) && { trainerSocial: social }),
     });
     if (s.chatId) tx.update(db.doc(`chats/${s.chatId}`), { isUnlocked: true });
 

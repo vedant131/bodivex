@@ -44,6 +44,18 @@ const getFallbackBlueprint = (goals: FitnessGoal[], fitnessLevel: string): Fitne
   const isWeightLoss = goals.includes(FitnessGoal.WEIGHT_LOSS);
   const isMuscle = goals.includes(FitnessGoal.MUSCLE_GAIN);
 
+  if (goals.includes(FitnessGoal.CONTEST_PREP)) {
+    return {
+      goals,
+      trainerType: 'Contest prep coach with federation experience',
+      recommendedStyle: 'Periodised prep: progressive overload, planned cut, posing practice and peak week',
+      estimatedTimeline: '12–20 weeks out from your show is ideal',
+      additionalNotes: 'Pick a coach who has prepped athletes in your federation. Weekly check-ins with photos and weight keep the prep on track.',
+      recommendedFilters: { specializations: ['Contest Prep', 'Posing', 'Bodybuilding'], sessionPreference: 'both', minExperience: 3 },
+      generatedAt: new Date(),
+    };
+  }
+
   return {
     goals,
     trainerType: isWeightLoss && isMuscle

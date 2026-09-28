@@ -23,6 +23,7 @@ export interface Session {
   slotKey: string;             // YYYY-MM-DD-HH, doc id of the trainer's slot lock
   price: number;               // Trainer's quoted price, paid directly to trainer
   chatId?: string;
+  trainerSocial?: { instagram?: string; youtube?: string }; // revealed after acceptance
   videoCallRoomId?: string;     // Jitsi room for online sessions (set on accept)
   confirmedAt?: Date;
   clientRating?: number;

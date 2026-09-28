@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../stores/authStore';
-import { updateTrainerProfile } from '../services/trainers';
+import { updateTrainerProfile, getTrainerSocial, saveTrainerSocial } from '../services/trainers';
 import { updateUserProfile } from '../services/auth';
 import { uploadImage } from '../services/storage';
 import { Screen } from '../components/ui/Screen';
@@ -19,7 +19,12 @@ import { CredentialsEditor, Entry } from '../components/trainer/CredentialsEdito
 import { T, type } from '../constants/theme';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../constants/config';
 import { SPECIALIZATIONS, TrainerProfile } from '../types/trainer';
-import { SessionPreference } from '../types/user';
+import { SessionPreference, AthleteLevel, AthleteLevelLabel, FEDERATIONS } from '../types/user';
+
+/** Accepts "@name", "name" or a pasted profile URL; returns just the handle. */
+const cleanHandle = (v: string) =>
+  v.trim().replace(/^https?:\/\/(www\.)?(instagram\.com|youtube\.com)\//i, '').replace(/^@/, '').replace(/[/?].*$/, '');
+const HANDLE = /^[A-Za-z0-9._]{2,30}$/;
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Bengali'];
 
@@ -35,6 +40,8 @@ export default function EditTrainerProfile() {
   const [experience, setExperience] = useState(String(p?.experience ?? ''));
   const [specs, setSpecs] = useState<string[]>(p?.specializations ?? []);
   const [pref, setPref] = useState<SessionPreference>(p?.sessionPreference ?? 'both');
+  const [levels, setLevels] = useState<AthleteLevel[]>(p?.coachesLevels ?? ['enthusiast']);
+  const [feds, setFeds] = useState<string[]>(p?.federations ?? []);
   const [online, setOnline] = useState(p?.pricingOnline ? String(p.pricingOnline) : '');
   const [offline, setOffline] = useState(p?.pricingOffline ? String(p.pricingOffline) : '');
   const [gymName, setGymName] = useState(p?.gymLocation?.name ?? '');
@@ -49,7 +56,14 @@ export default function EditTrainerProfile() {
       .map((m) => ({ title: m.title, subtitle: m.description, year: m.year }));
   const [competitions, setCompetitions] = useState<Entry[]>(medalsOf('competition'));
   const [achievements, setAchievements] = useState<Entry[]>(medalsOf('achievement'));
+  const [instagram, setInstagram] = useState('');
+  const [youtube, setYoutube] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!p) return;
+    getTrainerSocial(p.id).then((s) => { setInstagram(s.instagram ?? ''); setYoutube(s.youtube ?? ''); }).catch(() => {});
+  }, [p?.id]);
 
   if (!p || !user) return null;
 
@@ -73,6 +87,9 @@ export default function EditTrainerProfile() {
     if (offersOnline && !(Number(online) > 0)) errors.push('Set your online price');
     if (offersOffline && !(Number(offline) > 0)) errors.push('Set your in-person price');
     if (offersOffline && !gymName.trim()) errors.push('Add the gym where you train clients');
+    const ig = cleanHandle(instagram);
+    const yt = cleanHandle(youtube);
+    if ((ig && !HANDLE.test(ig)) || (yt && !HANDLE.test(yt))) errors.push('Social handles can only use letters, numbers, dots and underscores');
     if (errors.length) return Alert.alert('Almost there', errors.join('\n'));
 
     setSaving(true);
@@ -85,6 +102,8 @@ export default function EditTrainerProfile() {
         experience: Number(experience) || 0,
         specializations: specs,
         sessionPreference: pref,
+        coachesLevels: levels,
+        federations: levels.some((l) => l !== 'enthusiast') ? feds : [],
         pricingOnline: offersOnline ? Number(online) : undefined,
         pricingOffline: offersOffline ? Number(offline) : undefined,
         languages,
@@ -100,6 +119,7 @@ export default function EditTrainerProfile() {
           : undefined,
       };
       await updateTrainerProfile(p.id, changes);
+      await saveTrainerSocial(p.id, { instagram: ig || undefined, youtube: yt || undefined });
       await updateUserProfile(user.id, { name: changes.name, ...(profilePhoto && { profilePhoto }) });
       setTrainerProfile({ ...p, ...changes });
       setUser({ ...user, name: changes.name!, profilePhoto });
@@ -147,6 +167,24 @@ export default function EditTrainerProfile() {
               {SPECIALIZATIONS.map((s) => <Chip key={s} label={s} active={specs.includes(s)} onPress={() => toggle(specs, setSpecs, s)} />)}
             </View>
           </Field>
+
+          <Field label="Who do you coach?">
+            <View style={styles.wrap}>
+              {(Object.keys(AthleteLevelLabel) as AthleteLevel[]).map((l) => (
+                <Chip key={l} label={AthleteLevelLabel[l]} active={levels.includes(l)}
+                  onPress={() => setLevels(levels.includes(l) ? levels.filter((x) => x !== l) : [...levels, l])} />
+              ))}
+            </View>
+          </Field>
+          {levels.some((l) => l !== 'enthusiast') && (
+            <Field label="Federations you've prepped athletes for">
+              <View style={styles.wrap}>
+                {FEDERATIONS.map((f) => (
+                  <Chip key={f} label={f} active={feds.includes(f)} onPress={() => setFeds(feds.includes(f) ? feds.filter((x) => x !== f) : [...feds, f])} />
+                ))}
+              </View>
+            </Field>
+          )}
 
           <Field label="How you train">
             <View style={styles.wrap}>
@@ -208,6 +246,11 @@ export default function EditTrainerProfile() {
             titlePh="e.g. Coached 300+ clients"
             subtitlePh="Detail (optional)"
           />
+
+          <Field label="Social handles" hint="Shared with a client only after you accept their booking, so first contact stays on Bodivex.">
+            <Input value={instagram} onChangeText={setInstagram} placeholder="Instagram, e.g. arjun.fitness" autoCapitalize="none" autoCorrect={false} />
+            <Input value={youtube} onChangeText={setYoutube} placeholder="YouTube handle, e.g. arjuntrains" autoCapitalize="none" autoCorrect={false} />
+          </Field>
 
           <Field label="Languages">
             <View style={styles.wrap}>

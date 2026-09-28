@@ -20,6 +20,7 @@ import { Avatar, IconButton, StatusPill } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA, TrainerReview } from '../../types/trainer';
+import { AthleteLevelLabel } from '../../types/user';
 
 type Tab = 'about' | 'results' | 'reviews' | 'qa';
 const TABS: { key: Tab; label: string }[] = [
@@ -143,6 +144,17 @@ export default function TrainerProfileScreen() {
             {tab === 'about' && (
               <>
                 {!!trainer.bio && <Text style={[type.body, { color: T.text2 }]}>{trainer.bio}</Text>}
+                {(trainer.coachesLevels ?? []).some((l) => l !== 'enthusiast') && (
+                  <Glass radius={T.radius.lg} style={styles.certRow}>
+                    <Ionicons name="medal" size={18} color={T.warning} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={type.body}>
+                        Coaches {(trainer.coachesLevels ?? []).map((l) => AthleteLevelLabel[l].toLowerCase() + 's').join(', ')}
+                      </Text>
+                      {!!trainer.federations?.length && <Text style={type.caption}>Prep experience: {trainer.federations.join(', ')}</Text>}
+                    </View>
+                  </Glass>
+                )}
                 <Text style={type.micro}>Sessions</Text>
                 {trainer.pricingOnline ? (
                   <Option icon="videocam" tint={T.ring1} title="Online" sub="Live video · form check" price={trainer.pricingOnline} />

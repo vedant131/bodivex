@@ -7,7 +7,8 @@ import { Field, Tile } from '../../../components/ui/Form';
 import { Chip } from '../../../components/ui/Bits';
 import { FitnessGoal, SessionPreference, BudgetRange, BudgetRangeLabel } from '../../../types/user';
 
-const GOALS: { value: FitnessGoal; label: string; desc: string; icon: 'flame' | 'barbell' | 'walk' | 'body' | 'nutrition' | 'flash' }[] = [
+const GOALS: { value: FitnessGoal; label: string; desc: string; icon: 'trophy' | 'flame' | 'barbell' | 'walk' | 'body' | 'nutrition' | 'flash' }[] = [
+  { value: FitnessGoal.CONTEST_PREP, label: 'Contest prep', desc: 'Peak for a show or meet', icon: 'trophy' },
   { value: FitnessGoal.WEIGHT_LOSS, label: 'Lose weight', desc: 'Burn fat, get leaner', icon: 'flame' },
   { value: FitnessGoal.MUSCLE_GAIN, label: 'Build muscle', desc: 'Stronger & bigger', icon: 'barbell' },
   { value: FitnessGoal.ENDURANCE, label: 'Stamina', desc: 'Run farther, breathe easier', icon: 'walk' },
@@ -18,7 +19,8 @@ const GOALS: { value: FitnessGoal; label: string; desc: string; icon: 'flame' | 
 
 export default function ClientStep3() {
   const { clientProfile, setClientProfile } = useAuthStore();
-  const [goals, setGoals] = useState<FitnessGoal[]>(clientProfile?.goals ?? []);
+  const athlete = (clientProfile?.athleteLevel ?? 'enthusiast') !== 'enthusiast';
+  const [goals, setGoals] = useState<FitnessGoal[]>(clientProfile?.goals ?? (athlete ? [FitnessGoal.CONTEST_PREP] : []));
   const [pref, setPref] = useState<SessionPreference>(clientProfile?.sessionPreference ?? 'both');
   const [budget, setBudget] = useState<BudgetRange>(clientProfile?.budgetRange ?? '300_700');
 
@@ -32,7 +34,7 @@ export default function ClientStep3() {
   return (
     <OnboardingShell step={3} total={4} title="Your goals" subtitle="Pick all that apply." cta="Build my plan" onNext={next} canNext={goals.length > 0}>
       <View style={styles.grid}>
-        {GOALS.map((g) => (
+        {GOALS.filter((g) => athlete || g.value !== FitnessGoal.CONTEST_PREP).map((g) => (
           <Tile key={g.value} icon={g.icon} title={g.label} desc={g.desc} selected={goals.includes(g.value)} onPress={() => toggle(g.value)} />
         ))}
       </View>

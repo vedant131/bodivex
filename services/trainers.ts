@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
 import { uploadImage } from './storage';
-import { TrainerProfile, TrainerFilter, Transformation, TrainerQA, TrainerReview } from '../types/trainer';
+import { TrainerProfile, TrainerFilter, Transformation, TrainerQA, TrainerReview, TrainerSocial } from '../types/trainer';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,9 @@ export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfil
   if (filter?.gymName) {
     const g = filter.gymName.toLowerCase();
     trainers = trainers.filter((t) => t.gymLocation?.name.toLowerCase().includes(g));
+  }
+  if (filter?.athleteLevel) {
+    trainers = trainers.filter((t) => (t.coachesLevels ?? ['enthusiast']).includes(filter.athleteLevel!));
   }
   if (filter?.language) {
     trainers = trainers.filter((t) => t.languages?.includes(filter.language!));
@@ -136,6 +139,32 @@ export const updateTrainerRates = async (
   trainerId: string,
   rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
 ): Promise<void> => updateTrainerProfile(trainerId, rates);
+
+// ─── New-client fee ledger (written by the acceptBooking function) ──────────
+
+export interface Lead {
+  clientId: string;
+  clientName: string;
+  fee: number;
+  paymentRef: string | null;
+  createdAt: Date;
+}
+
+export const getTrainerLeads = async (uid: string): Promise<Lead[]> => {
+  const snap = await getDocs(query(collection(db, COLLECTIONS.TRAINERS, uid, 'leads'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ ...(d.data() as Lead), createdAt: toDate(d.data().createdAt) ?? new Date() }));
+};
+
+// ─── Social handles (private until a booking is accepted) ────────────────────
+
+export const getTrainerSocial = async (uid: string): Promise<TrainerSocial> => {
+  const snap = await getDoc(doc(db, COLLECTIONS.TRAINERS, uid, 'private', 'social'));
+  return (snap.data() as TrainerSocial) ?? {};
+};
+
+export const saveTrainerSocial = async (uid: string, social: TrainerSocial): Promise<void> => {
+  await setDoc(doc(db, COLLECTIONS.TRAINERS, uid, 'private', 'social'), withoutUndefined(social));
+};
 
 // ─── Transformations ──────────────────────────────────────────────────────────
 

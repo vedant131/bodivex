@@ -6,7 +6,7 @@ import { OnboardingShell } from '../../../components/ui/OnboardingShell';
 import { Field, Input, Tile } from '../../../components/ui/Form';
 import { Chip } from '../../../components/ui/Bits';
 import { SPECIALIZATIONS } from '../../../types/trainer';
-import { SessionPreference } from '../../../types/user';
+import { SessionPreference, AthleteLevel, AthleteLevelLabel, FEDERATIONS } from '../../../types/user';
 
 const MODES: { value: SessionPreference; label: string; desc: string; icon: 'videocam' | 'barbell' | 'swap-horizontal' }[] = [
   { value: 'online', label: 'Online', desc: 'Video sessions', icon: 'videocam' },
@@ -20,16 +20,20 @@ export default function TrainerStep2() {
   const [pref, setPref] = useState<SessionPreference>(trainerProfile?.sessionPreference ?? 'both');
   const [gymName, setGymName] = useState(trainerProfile?.gymLocation?.name ?? '');
   const [gymAddress, setGymAddress] = useState(trainerProfile?.gymLocation?.address ?? '');
+  const [levels, setLevels] = useState<AthleteLevel[]>(trainerProfile?.coachesLevels ?? ['enthusiast']);
+  const [feds, setFeds] = useState<string[]>(trainerProfile?.federations ?? []);
 
   const inPerson = pref !== 'online';
   // No invented gym: in-person coaches must say where they train
-  const valid = specs.length > 0 && (!inPerson || gymName.trim().length >= 2);
+  const valid = specs.length > 0 && levels.length > 0 && (!inPerson || gymName.trim().length >= 2);
 
   const next = () => {
     setTrainerProfile({
       ...trainerProfile!,
       specializations: specs,
       sessionPreference: pref,
+      coachesLevels: levels,
+      federations: levels.some((l) => l !== 'enthusiast') ? feds : [],
       gymLocation: inPerson
         ? {
             name: gymName.trim(),
@@ -53,6 +57,24 @@ export default function TrainerStep2() {
           ))}
         </View>
       </Field>
+
+      <Field label="Who do you coach?">
+        <View style={styles.wrap}>
+          {(Object.keys(AthleteLevelLabel) as AthleteLevel[]).map((l) => (
+            <Chip key={l} label={AthleteLevelLabel[l]} active={levels.includes(l)}
+              onPress={() => setLevels(levels.includes(l) ? levels.filter((x) => x !== l) : [...levels, l])} />
+          ))}
+        </View>
+      </Field>
+      {levels.some((l) => l !== 'enthusiast') && (
+        <Field label="Federations you've prepped athletes for">
+          <View style={styles.wrap}>
+            {FEDERATIONS.map((f) => (
+              <Chip key={f} label={f} active={feds.includes(f)} onPress={() => setFeds(feds.includes(f) ? feds.filter((x) => x !== f) : [...feds, f])} />
+            ))}
+          </View>
+        </Field>
+      )}
 
       <Field label="How you train">
         <View style={styles.grid}>

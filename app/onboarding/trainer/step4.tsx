@@ -41,6 +41,8 @@ export default function TrainerStep4() {
         pricingMonthly: trainerProfile?.pricingMonthly,
         gymLocation: trainerProfile?.gymLocation,
         sessionPreference: trainerProfile?.sessionPreference ?? 'both',
+        coachesLevels: trainerProfile?.coachesLevels ?? ['enthusiast'],
+        federations: trainerProfile?.federations ?? [],
         languages: trainerProfile?.languages || ['English', 'Hindi'],
         profilePhoto: trainerProfile?.profilePhoto
           ? await uploadImage(trainerProfile.profilePhoto, `users/${user.id}/profile.jpg`)

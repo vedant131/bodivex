@@ -19,7 +19,24 @@ export type BudgetRange =
   | '700_1500'
   | '1500_plus';
 
+/** Who the client is — pro athletes need different coaches than beginners */
+export type AthleteLevel = 'enthusiast' | 'competitive' | 'pro';
+
+export const AthleteLevelLabel: Record<AthleteLevel, string> = {
+  enthusiast: 'Fitness enthusiast',
+  competitive: 'Competitive athlete',
+  pro: 'Pro athlete',
+};
+
+export const SPORTS = [
+  'Bodybuilding', "Men's Physique", 'Bikini / Figure', 'Classic Physique', 'Powerlifting',
+  'Weightlifting', 'CrossFit', 'Running', 'Combat sports', 'Other sport',
+] as const;
+
+export const FEDERATIONS = ['IFBB Pro', 'IFBB', 'NPC', 'WNBF', 'IPF', 'WRPF', 'Other'] as const;
+
 export enum FitnessGoal {
+  CONTEST_PREP = 'contest_prep',
   WEIGHT_LOSS = 'weight_loss',
   MUSCLE_GAIN = 'muscle_gain',
   ENDURANCE = 'endurance',
@@ -29,6 +46,7 @@ export enum FitnessGoal {
 }
 
 export const FitnessGoalLabel: Record<FitnessGoal, string> = {
+  [FitnessGoal.CONTEST_PREP]: 'Contest Prep',
   [FitnessGoal.WEIGHT_LOSS]: 'Lose Weight',
   [FitnessGoal.MUSCLE_GAIN]: 'Build Muscle',
   [FitnessGoal.ENDURANCE]: 'Improve Stamina',
@@ -80,6 +98,10 @@ export interface ClientProfile {
   goals: FitnessGoal[];
   sessionPreference: SessionPreference;
   budgetRange: BudgetRange;
+  athleteLevel?: AthleteLevel;   // missing on older profiles = enthusiast
+  sport?: string;
+  federation?: string;
+  nextCompetition?: string;      // e.g. "IFBB Pro Mumbai Classic, Feb 2027"
   aadhaarVerified: boolean;
   fitnessBlueprint?: FitnessBlueprint;
   createdAt: Date;

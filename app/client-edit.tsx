@@ -15,6 +15,7 @@ import { T, type } from '../constants/theme';
 import { CITIES } from '../constants/config';
 import {
   ClientProfile, FitnessGoal, FitnessGoalLabel, FitnessLevel, SessionPreference, BudgetRange, BudgetRangeLabel,
+  AthleteLevel, AthleteLevelLabel, SPORTS, FEDERATIONS,
 } from '../types/user';
 
 const LEVELS: FitnessLevel[] = ['beginner', 'intermediate', 'advanced'];
@@ -35,6 +36,10 @@ export default function EditClientProfile() {
   const [goals, setGoals] = useState<FitnessGoal[]>(p?.goals ?? []);
   const [pref, setPref] = useState<SessionPreference>(p?.sessionPreference ?? 'both');
   const [budget, setBudget] = useState<BudgetRange>(p?.budgetRange ?? '300_700');
+  const [athleteLevel, setAthleteLevel] = useState<AthleteLevel>(p?.athleteLevel ?? 'enthusiast');
+  const [sport, setSport] = useState(p?.sport ?? '');
+  const [federation, setFederation] = useState(p?.federation ?? '');
+  const [nextComp, setNextComp] = useState(p?.nextCompetition ?? '');
   const [saving, setSaving] = useState(false);
 
   if (!user || !p) return null;
@@ -51,6 +56,7 @@ export default function EditClientProfile() {
     if (!(Number(height) > 0)) errors.push('Enter your height');
     if (!(Number(weight) > 0)) errors.push('Enter your weight');
     if (!goals.length) errors.push('Pick at least one goal');
+    if (athleteLevel !== 'enthusiast' && !sport) errors.push('Pick your sport');
     if (errors.length) return Alert.alert('Almost there', errors.join('\n'));
 
     setSaving(true);
@@ -69,6 +75,10 @@ export default function EditClientProfile() {
         goals,
         sessionPreference: pref,
         budgetRange: budget,
+        athleteLevel,
+        sport: athleteLevel !== 'enthusiast' ? sport : undefined,
+        federation: athleteLevel !== 'enthusiast' && federation ? federation : undefined,
+        nextCompetition: athleteLevel !== 'enthusiast' && nextComp.trim() ? nextComp.trim() : undefined,
         profilePhoto,
       };
       await saveClientProfile(user.id, changes);
@@ -119,6 +129,29 @@ export default function EditClientProfile() {
               </View>
             ))}
           </View>
+
+          <Field label="You are">
+            <View style={styles.wrap}>
+              {(Object.keys(AthleteLevelLabel) as AthleteLevel[]).map((l) => (
+                <Chip key={l} label={AthleteLevelLabel[l]} active={athleteLevel === l} onPress={() => setAthleteLevel(l)} />
+              ))}
+            </View>
+          </Field>
+          {athleteLevel !== 'enthusiast' && (
+            <>
+              <Field label="Sport">
+                <View style={styles.wrap}>
+                  {SPORTS.map((s) => <Chip key={s} label={s} active={sport === s} onPress={() => setSport(s)} />)}
+                </View>
+              </Field>
+              <Field label="Federation">
+                <View style={styles.wrap}>
+                  {FEDERATIONS.map((f) => <Chip key={f} label={f} active={federation === f} onPress={() => setFederation(federation === f ? '' : f)} />)}
+                </View>
+              </Field>
+              <Field label="Next competition"><Input value={nextComp} onChangeText={setNextComp} placeholder="e.g. IFBB Pro Mumbai Classic, Feb 2027" /></Field>
+            </>
+          )}
 
           <Field label="Fitness level">
             <View style={styles.wrap}>
