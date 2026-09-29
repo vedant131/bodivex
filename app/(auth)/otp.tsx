@@ -11,8 +11,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { USE_EMULATORS } from '../../services/firebase';
-import { signInWithPhone, createUserProfile, loadSession } from '../../services/auth';
+import { signInWithPhone, createUserProfile, loadSession, DEV_LOGIN } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
 import { homeRouteFor } from '../../services/routing';
 import { Backdrop } from '../../components/ui/Backdrop';
@@ -67,7 +66,7 @@ export default function OTPScreen() {
     Keyboard.dismiss();
     setIsLoading(true);
     try {
-      // Note: the code isn't checked in dev (emulator); real SMS OTP comes with the launch build
+      // Note: the code isn't checked in dev login; real SMS OTP comes with the launch build
       const fbUser = await signInWithPhone(phone);
       let session = await loadSession(fbUser.uid);
       if (!session.user) {
@@ -105,7 +104,7 @@ export default function OTPScreen() {
           <Text style={[type.body, { color: T.text2, marginTop: 10 }]}>
             Sent to <Text style={{ color: T.text, fontWeight: '700' }}>{maskedPhone}</Text>
           </Text>
-          {USE_EMULATORS && <Text style={styles.devHint}>Dev mode · any 6 digits work</Text>}
+          {DEV_LOGIN && <Text style={styles.devHint}>Dev mode · any 6 digits work</Text>}
         </View>
 
         <View style={styles.otpRow}>

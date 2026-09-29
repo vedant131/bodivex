@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { User, UserRole, ClientProfile } from '../types/user';
 import { TrainerProfile } from '../types/trainer';
 
-// Not persisted: Firebase Auth keeps the login, and the profile is reloaded
+// Not persisted: the auth client keeps the login, and the profile is reloaded
 // from Firestore on start (see app/_layout.tsx), so the cache can't go stale.
 interface AuthState {
   user: User | null;

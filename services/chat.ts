@@ -1,35 +1,11 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  serverTimestamp,
-  increment,
-} from 'firebase/firestore';
-import { db, COLLECTIONS } from './firebase';
-import { Chat, Message, MessageType, ScheduledCheckIn } from '../types/chat';
+import { sb, toRow, fromRow, must, live } from './backend';
+import { Chat, Message, ScheduledCheckIn } from '../types/chat';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const toMessage = (id: string, data: any): Message => ({
-  id,
-  ...data,
-  timestamp: data.timestamp?.toDate?.() ?? new Date(),
-});
-
-const toChat = (id: string, data: any): Chat => ({
-  id,
-  ...data,
-  lastMessageAt: data.lastMessageAt?.toDate?.() ?? undefined,
-  createdAt: data.createdAt?.toDate?.() ?? new Date(),
-});
+const toChat = (row: any) => fromRow<Chat>(row);
+const toMessage = (row: any): Message => {
+  const { createdAt, ...m } = fromRow<any>(row);
+  return { ...m, timestamp: createdAt };
+};
 
 // ─── Chat Management ──────────────────────────────────────────────────────────
 
@@ -38,171 +14,74 @@ export const getOrCreateChat = async (
   trainer: { id: string; name: string },
   sessionId?: string
 ): Promise<string> => {
-  const userId1 = client.id;
-  const userId2 = trainer.id;
-  const col = collection(db, COLLECTIONS.CHATS);
-  // Check if chat already exists between these two users
-  const q = query(col, where('participants', 'array-contains', userId1));
-  const snap = await getDocs(q);
-  const existing = snap.docs.find(d => {
-    const parts = d.data().participants as string[];
-    return parts.includes(userId2);
-  });
-  if (existing) return existing.id;
+  const existing = must(await sb.from('chats').select('id').contains('participants', [client.id, trainer.id]).limit(1));
+  if (existing.length) return existing[0].id;
 
-  // Create new chat (locked until trainer accepts session)
-  const newChat: Omit<Chat, 'id'> = {
-    participants: [userId1, userId2],
-    participantNames: { [userId1]: client.name, [userId2]: trainer.name },
-    trainerId: userId2, // only the trainer may unlock the chat (see firestore.rules)
-    unreadCount: { [userId1]: 0, [userId2]: 0 },
-    ...(sessionId && { sessionId }),
-    isUnlocked: false,
-    createdAt: new Date(),
-  };
-  // lastMessageAt is set now so the chat shows in lists ordered by it
-  const ref = await addDoc(col, { ...newChat, createdAt: serverTimestamp(), lastMessageAt: serverTimestamp() });
-  return ref.id;
+  // Locked until the trainer accepts a booking (only accept_booking can unlock)
+  const row = must(await sb.from('chats').insert(toRow({
+    participants: [client.id, trainer.id],
+    participantNames: { [client.id]: client.name, [trainer.id]: trainer.name },
+    trainerId: trainer.id,
+    unreadCount: { [client.id]: 0, [trainer.id]: 0 },
+    sessionId,
+  })).select('id').single());
+  return row.id;
 };
 
-export const sendMessage = async (
-  chatId: string,
-  message: Omit<Message, 'id' | 'timestamp' | 'read'>
-): Promise<void> => {
-  const msgCol = collection(db, COLLECTIONS.CHATS, chatId, COLLECTIONS.MESSAGES);
-  await addDoc(msgCol, { ...message, timestamp: serverTimestamp(), read: false });
-
-  // Update last message on chat document
-  const chatRef = doc(db, COLLECTIONS.CHATS, chatId);
-  const preview =
-    message.type === 'text'
-      ? message.text ?? ''
-      : message.type === 'photo'
-      ? '📷 Photo'
-      : message.type === 'voice'
-      ? '🎙️ Voice message'
-      : 'Message';
-
-  const participants: string[] = (await getDoc(chatRef)).data()?.participants ?? [];
-  const unread = Object.fromEntries(
-    participants.filter((p) => p !== message.senderId).map((p) => [`unreadCount.${p}`, increment(1)])
-  );
-  await updateDoc(chatRef, {
-    lastMessage: preview,
-    lastMessageType: message.type,
-    lastMessageAt: serverTimestamp(),
-    [`unreadCount.${message.senderId}`]: 0,
-    ...unread,
-  });
+/** Sends through the send_message DB function (checks unlock + updates unread counts atomically). */
+export const sendMessage = async (chatId: string, message: Omit<Message, 'id' | 'timestamp' | 'read'>): Promise<void> => {
+  must(await sb.rpc('send_message', {
+    p_chat: chatId,
+    p_type: message.type,
+    p_text: message.text ?? null,
+    p_photo_url: message.photoUrl ?? null,
+    p_voice_url: message.voiceUrl ?? null,
+    p_voice_secs: message.voiceDurationSecs ?? null,
+    p_sender_name: message.senderName ?? '',
+  }));
 };
 
-export const markAsRead = async (chatId: string, userId: string): Promise<void> => {
-  const chatRef = doc(db, COLLECTIONS.CHATS, chatId);
-  await updateDoc(chatRef, { [`unreadCount.${userId}`]: 0 });
-
-  // Mark all messages as read
-  const msgCol = collection(db, COLLECTIONS.CHATS, chatId, COLLECTIONS.MESSAGES);
-  const q = query(msgCol, where('read', '==', false));
-  const snap = await getDocs(q);
-  const updates = snap.docs
-    .filter(d => d.data().senderId !== userId)
-    .map(d => updateDoc(d.ref, { read: true }));
-  await Promise.all(updates);
+export const markAsRead = async (chatId: string, _userId: string): Promise<void> => {
+  must(await sb.rpc('mark_chat_read', { p_chat: chatId }));
 };
 
 // ─── Real-time Subscriptions ──────────────────────────────────────────────────
 
-export const subscribeToMessages = (
-  chatId: string,
-  callback: (messages: Message[]) => void
-): (() => void) => {
-  const msgCol = collection(db, COLLECTIONS.CHATS, chatId, COLLECTIONS.MESSAGES);
-  const q = query(msgCol, orderBy('timestamp', 'asc'));
-  return onSnapshot(q, snap => {
-    const messages = snap.docs.map(d => toMessage(d.id, d.data()));
-    callback(messages);
-  });
-};
+const getMessages = async (chatId: string) =>
+  must(await sb.from('messages').select().eq('chat_id', chatId).order('created_at', { ascending: true })).map(toMessage);
 
-export const subscribeToChats = (
-  userId: string,
-  callback: (chats: Chat[]) => void
-): (() => void) => {
-  const col = collection(db, COLLECTIONS.CHATS);
-  const q = query(col, where('participants', 'array-contains', userId), orderBy('lastMessageAt', 'desc'));
-  return onSnapshot(q, snap => {
-    const chats = snap.docs.map(d => toChat(d.id, d.data()));
-    callback(chats);
-  });
-};
+export const subscribeToMessages = (chatId: string, callback: (messages: Message[]) => void) =>
+  live([{ table: 'messages', filter: `chat_id=eq.${chatId}` }], async () => callback(await getMessages(chatId)));
 
-export const subscribeToChat = (
-  chatId: string,
-  callback: (chat: Chat) => void
-): (() => void) => {
-  const ref = doc(db, COLLECTIONS.CHATS, chatId);
-  return onSnapshot(ref, snap => {
-    if (snap.exists()) callback(toChat(snap.id, snap.data()));
+export const subscribeToChats = (userId: string, callback: (chats: Chat[]) => void) =>
+  live([{ table: 'chats' }], async () => {
+    const rows = must(await sb.from('chats').select().contains('participants', [userId]).order('last_message_at', { ascending: false }));
+    callback(rows.map(toChat));
   });
-};
+
+export const subscribeToChat = (chatId: string, callback: (chat: Chat) => void) =>
+  live([{ table: 'chats', filter: `id=eq.${chatId}` }], async () => {
+    const row = must(await sb.from('chats').select().eq('id', chatId).maybeSingle());
+    if (row) callback(toChat(row));
+  });
 
 // ─── Typing Indicators ────────────────────────────────────────────────────────
 
-export const setTyping = async (
-  chatId: string,
-  userId: string,
-  isTyping: boolean
-): Promise<void> => {
-  const ref = doc(db, COLLECTIONS.CHATS, chatId);
-  if (isTyping) {
-    await updateDoc(ref, { [`typing.${userId}`]: true });
-  } else {
-    await updateDoc(ref, { [`typing.${userId}`]: false });
-  }
+export const setTyping = async (chatId: string, _userId: string, isTyping: boolean): Promise<void> => {
+  must(await sb.rpc('set_typing', { p_chat: chatId, p_typing: isTyping }));
 };
 
-export const subscribeToTyping = (
-  chatId: string,
-  currentUserId: string,
-  callback: (typingUsers: string[]) => void
-): (() => void) => {
-  const ref = doc(db, COLLECTIONS.CHATS, chatId);
-  return onSnapshot(ref, snap => {
-    if (!snap.exists()) return;
-    const typing = snap.data().typing ?? {};
-    const users = Object.entries(typing)
-      .filter(([uid, isTyping]) => uid !== currentUserId && isTyping)
-      .map(([uid]) => uid);
-    callback(users);
-  });
-};
+export const subscribeToTyping = (chatId: string, currentUserId: string, callback: (typingUsers: string[]) => void) =>
+  subscribeToChat(chatId, (chat) =>
+    callback(Object.entries(chat.typing ?? {}).filter(([uid, on]) => uid !== currentUserId && on).map(([uid]) => uid))
+  );
 
 // ─── Scheduled Check-Ins ──────────────────────────────────────────────────────
 
-export const createScheduledCheckIn = async (
-  data: Omit<ScheduledCheckIn, 'id' | 'createdAt'>
-): Promise<string> => {
-  const col = collection(db, COLLECTIONS.SCHEDULED_CHECKINS);
-  const ref = await addDoc(col, { ...data, createdAt: serverTimestamp() });
-  return ref.id;
-};
+export const createScheduledCheckIn = async (data: Omit<ScheduledCheckIn, 'id' | 'createdAt'>): Promise<string> =>
+  must(await sb.from('scheduled_checkins').insert(toRow(data)).select('id').single()).id;
 
-export const getScheduledCheckIns = async (
-  trainerId: string,
-  clientId: string
-): Promise<ScheduledCheckIn[]> => {
-  const col = collection(db, COLLECTIONS.SCHEDULED_CHECKINS);
-  const q = query(
-    col,
-    where('trainerId', '==', trainerId),
-    where('clientId', '==', clientId),
-    where('isActive', '==', true)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({
-    id: d.id,
-    ...d.data(),
-    scheduledFor: d.data().scheduledFor?.toDate?.() ?? new Date(),
-    createdAt: d.data().createdAt?.toDate?.() ?? new Date(),
-  })) as ScheduledCheckIn[];
-};
+export const getScheduledCheckIns = async (trainerId: string, clientId: string): Promise<ScheduledCheckIn[]> =>
+  must(await sb.from('scheduled_checkins').select()
+    .eq('trainer_id', trainerId).eq('client_id', clientId).eq('is_active', true)
+  ).map((r) => fromRow<ScheduledCheckIn>(r));

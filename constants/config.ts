@@ -40,16 +40,6 @@ export const CONFIG = {
     minLeadMins: 60,    // can't book a slot starting within the next hour
   },
 
-  // Firebase — `demo-` project id works only with the local emulator.
-  // Replace with the real config from the Firebase Console before launch.
-  firebase: {
-    apiKey: 'demo-api-key',
-    authDomain: 'demo-bodivex.firebaseapp.com',
-    projectId: 'demo-bodivex',
-    storageBucket: 'demo-bodivex.appspot.com',
-    appId: 'demo-app-id',
-  },
-
   // Agora — replace with your Agora App ID
   agora: {
     appId: 'YOUR_AGORA_APP_ID',

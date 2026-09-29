@@ -14,7 +14,7 @@ import { Alert } from '../../../components/ui/Feedback';
 
 
 // Verification is manual for v1: the Bodivex team checks ID + certificates
-// with the trainer, then sets kycStatus = 'approved' in the Firebase console.
+// with the trainer, then sets is_kyc_approved = true, kyc_status = 'approved' on the trainer row (Supabase Studio).
 export default function TrainerStep5() {
   const { user, trainerProfile, setTrainerProfile, setUser } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);

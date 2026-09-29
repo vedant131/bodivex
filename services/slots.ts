@@ -1,5 +1,4 @@
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db, COLLECTIONS } from './firebase';
+import { sb, must } from './backend';
 import { CONFIG } from '../constants/config';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -7,7 +6,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** Local calendar date, YYYY-MM-DD. Note: device timezone; fine while India-only (IST). */
 export const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** Slot lock doc id: YYYY-MM-DD-HH */
+/** Slot lock key: YYYY-MM-DD-HH (one live booking per trainer per key, enforced by the DB) */
 export const slotKey = (d: Date) => `${dateKey(d)}-${pad(d.getHours())}`;
 
 export const nextDays = (count = CONFIG.slots.daysAhead, from = new Date()): Date[] =>
@@ -31,11 +30,5 @@ export const slotPeriod = (slot: Date): 'Morning' | 'Afternoon' | 'Evening' =>
   slot.getHours() < 12 ? 'Morning' : slot.getHours() < 17 ? 'Afternoon' : 'Evening';
 
 /** Slot keys already taken for this trainer from today onward. */
-export const getBookedSlotKeys = async (trainerId: string): Promise<Set<string>> => {
-  const q = query(
-    collection(db, COLLECTIONS.TRAINERS, trainerId, 'slots'),
-    where('date', '>=', dateKey(new Date()))
-  );
-  const snap = await getDocs(q);
-  return new Set(snap.docs.map((d) => d.id));
-};
+export const getBookedSlotKeys = async (trainerId: string): Promise<Set<string>> =>
+  new Set(must(await sb.rpc('booked_slot_keys', { p_trainer: trainerId })) as string[]);

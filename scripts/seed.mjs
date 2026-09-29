@@ -1,19 +1,19 @@
-// Seeds the LOCAL emulator with sample approved trainers (never a real project).
-// Usage: `npm run emulators` in one terminal, then `npm run seed`.
+// Seeds sample approved trainers + gyms. Defaults to the LOCAL stack (`npm run db:start`).
+// For a hosted test project: SUPABASE_URL=... SUPABASE_SERVICE_KEY=... npm run seed
 // Each trainer can log in from the app with their phone number (any 6-digit code).
-process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
+import { readFileSync } from 'node:fs';
+import { createClient } from '@supabase/supabase-js';
 
-import { initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+// Well-known keys of every local Supabase stack (not secrets).
+const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-initializeApp({ projectId: 'demo-bodivex' });
-const auth = getAuth();
-const db = getFirestore();
+const must = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
 
 // Must match signInWithPhone() in services/auth.ts
-const PASSWORD = 'emulator-only-password';
+const PASSWORD = 'dev-only-password';
 const emailFor = (phone) => `${phone.replace(/\D/g, '')}@phone.bodivex.dev`;
 
 const T = (name, city, gym, specs, exp, online, offline, pref, rating, reviews, sessions, bio) => ({
@@ -22,6 +22,11 @@ const T = (name, city, gym, specs, exp, online, offline, pref, rating, reviews, 
 
 // Placeholder portraits for local testing only (randomuser.me); real trainers upload their own.
 const PHOTOS = ['men/32', 'women/44', 'men/75', 'women/68', 'men/52', 'women/21', 'men/11', 'women/90', 'men/85'];
+// Our own 30s sample clip (in our storage, no third-party host) so every profile hero plays
+must(await admin.storage.from('media').upload('seed/sample-intro.mp4',
+  readFileSync(new globalThis.URL('../supabase/seed-media/sample-intro.mp4', import.meta.url)),
+  { contentType: 'video/mp4', upsert: true }));
+const SAMPLE_CLIP = admin.storage.from('media').getPublicUrl('seed/sample-intro.mp4').data.publicUrl;
 
 const TRAINERS = [
   T('Arjun Sharma', 'Mumbai', "Gold's Gym Bandra", ['Weight Loss', 'Strength Training', 'Bodybuilding'], 6, 499, 899, 'both', 4.9, 148, 520,
@@ -53,35 +58,29 @@ const GYMS = [
   ['Powerhouse Gym Nashik Road', 'Nashik Road', 'Nashik'],
 ];
 const gymId = (name) => 'seed-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-const gymRef = {};
-for (const [name, area, city] of GYMS) {
-  await db.doc(`gyms/${gymId(name)}`).set({ name, area, city, createdBy: 'seed', createdAt: FieldValue.serverTimestamp() });
-  gymRef[name] = { id: gymId(name), name, area };
-}
+const gymRef = Object.fromEntries(GYMS.map(([name, area]) => [name, { id: gymId(name), name, area }]));
+must(await admin.from('gyms').upsert(GYMS.map(([name, area, city]) => ({ id: gymId(name), name, area, city }))));
 
 // Where in-person trainers can train (some also go to homes / societies or outdoors)
 const PLACES = { 0: ['gym', 'home'], 2: ['gym'], 4: ['gym', 'home', 'outdoor'], 5: ['gym'], 6: ['gym'], 8: ['gym', 'outdoor'], 1: ['gym', 'home'] };
 
+// Existing seeded accounts (re-running is safe)
+const existing = new Map(must(await admin.auth.admin.listUsers({ perPage: 1000 })).users.map((u) => [u.email, u.id]));
+
 for (const [i, t] of TRAINERS.entries()) {
   const phone = `+91900000${String(i + 1).padStart(4, '0')}`;
   const email = emailFor(phone);
-  let uid;
-  try {
-    uid = (await auth.getUserByEmail(email)).uid;
-  } catch {
-    uid = (await auth.createUser({ email, password: PASSWORD })).uid;
-  }
+  const uid = existing.get(email) ??
+    must(await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true })).user.id;
 
-  await db.doc(`users/${uid}`).set({
-    phone, name: t.name, role: 'trainer', kycStatus: 'approved', aadhaarVerified: false,
-    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  const trainer = {
-    userId: uid,
+  must(await admin.from('users').upsert({ id: uid, phone, name: t.name, role: 'trainer', kyc_status: 'approved' }));
+  must(await admin.from('trainers').upsert({
+    id: uid,
+    user_id: uid,
     name: t.name,
     bio: t.bio,
-    profilePhoto: `https://randomuser.me/api/portraits/${PHOTOS[i]}.jpg`,
+    profile_photo: `https://randomuser.me/api/portraits/${PHOTOS[i]}.jpg`,
+    video_intro_url: SAMPLE_CLIP,
     city: t.city,
     state: 'Maharashtra',
     specializations: t.specs,
@@ -96,42 +95,35 @@ for (const [i, t] of TRAINERS.entries()) {
       ? [{ title: 'Nagpur Classic Bodybuilding', description: '1st place', year: 2021, kind: 'competition' }]
       : [],
     experience: t.exp,
-    pricingOnline: t.online,
-    pricingOffline: t.offline,
-    sessionPreference: t.pref,
+    pricing_online: t.online ?? null,
+    pricing_offline: t.offline ?? null,
+    session_preference: t.pref,
     languages: ['English', 'Hindi', 'Marathi'],
-    coachesLevels: i === 0 || i === 6 ? ['enthusiast', 'competitive', 'pro'] : ['enthusiast'],
+    coaches_levels: i === 0 || i === 6 ? ['enthusiast', 'competitive', 'pro'] : ['enthusiast'],
     federations: i === 0 ? ['IFBB Pro', 'NPC'] : i === 6 ? ['IFBB'] : [],
-    // Note: public sample clip (not a real 30–60s intro) so the profile hero has something to play
-    ...(i === 0 && { videoIntroUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4' }),
-    ...(t.gym !== 'Online' && {
-      gyms: [gymRef[t.gym]],
-      gymIds: [gymRef[t.gym].id],
-      inPersonPlaces: PLACES[i] ?? ['gym'],
-    }),
+    gyms: t.gym !== 'Online' ? [gymRef[t.gym]] : [],
+    gym_ids: t.gym !== 'Online' ? [gymRef[t.gym].id] : [],
+    in_person_places: t.gym !== 'Online' ? PLACES[i] ?? ['gym'] : null,
     rating: t.rating,
-    totalReviews: t.reviews,
-    totalSessions: t.sessions,
-    isKYCApproved: true,
-    kycStatus: 'approved',
-    isAvailableNow: true,
-    availabilityStatus: 'available_now',
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  await db.doc(`trainers/${uid}`).set(JSON.parse(JSON.stringify(trainer)), { merge: false });
-  if (i === 0) await db.doc(`trainers/${uid}/private/social`).set({ instagram: 'arjun.fitness', youtube: 'arjuntrains' });
+    total_reviews: t.reviews,
+    total_sessions: t.sessions,
+    is_kyc_approved: true,
+    kyc_status: 'approved',
+    is_available_now: true,
+    availability_status: 'available_now',
+  }));
 
   if (i === 0) {
-    await db.collection('qa').add({
-      trainerId: uid, clientId: 'seed', clientName: 'Aakash V.', askerRole: 'client',
+    must(await admin.from('trainer_private').upsert({ trainer_id: uid, instagram: 'arjun.fitness', youtube: 'arjuntrains' }));
+    const hasQa = must(await admin.from('qa').select('id').eq('trainer_id', uid).limit(1)).length;
+    if (!hasQa) must(await admin.from('qa').insert({
+      trainer_id: uid, client_id: '00000000-0000-0000-0000-000000000000', client_name: 'Aakash V.', asker_role: 'client',
       question: 'Do you make vegetarian high-protein diet plans?',
       answer: 'Yes, most of my clients are vegetarian: paneer, dal, soya, curd and whey.',
-      createdAt: FieldValue.serverTimestamp(), answeredAt: FieldValue.serverTimestamp(),
-    });
+      answered_at: new Date().toISOString(),
+    }));
   }
   console.log(`✓ ${t.name.padEnd(18)} ${t.city.padEnd(20)} login: ${phone}`);
 }
 
 console.log('\nDone. Log in as a client with any other number.');
-process.exit(0);

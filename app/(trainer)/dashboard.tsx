@@ -61,7 +61,7 @@ export default function TrainerDashboardScreen() {
     }
   };
 
-  const confirmAccept = async (req: Session, payment?: 'dev-simulated') => {
+  const confirmAccept = async (req: Session, payment?: 'test') => {
     setBusyId(req.id);
     try {
       const { fee } = await trainerAcceptSession(req.id, payment);
@@ -82,7 +82,7 @@ export default function TrainerDashboardScreen() {
       Alert.alert(
         `Pay ₹${fee} to accept`,
         `${req.clientName} is a new client. Your ${CONFIG.freeClientsPerTrainer} free clients are used, so a one-time ₹${fee} applies. Returning clients are always free.`,
-        [{ text: 'Not now', style: 'cancel' }, { text: `Pay ₹${fee} (test)`, onPress: () => confirmAccept(req, 'dev-simulated') }]
+        [{ text: 'Not now', style: 'cancel' }, { text: `Pay ₹${fee} (test)`, onPress: () => confirmAccept(req, 'test') }]
       );
     } catch (e: any) {
       Alert.alert('Could not accept', e.message);

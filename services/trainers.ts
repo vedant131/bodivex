@@ -1,37 +1,11 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  setDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  serverTimestamp,
-  deleteField,
-} from 'firebase/firestore';
-import { db, COLLECTIONS } from './firebase';
+import { sb, toRow, fromRow, must, live } from './backend';
 import { InPersonPlace } from '../types/gym';
 import { uploadImage } from './storage';
 import { TrainerProfile, TrainerFilter, Transformation, TrainerQA, TrainerReview, TrainerSocial } from '../types/trainer';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const toDate = (v: any) => v?.toDate?.() ?? (v ? new Date(v) : undefined);
-
-const toTrainerProfile = (id: string, data: any): TrainerProfile => ({
-  id,
-  ...data,
-  createdAt: toDate(data.createdAt) ?? new Date(),
-  updatedAt: toDate(data.updatedAt) ?? new Date(),
-});
-
-const withoutUndefined = <T extends object>(obj: T) =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+const toTrainerProfile = (row: any) => fromRow<TrainerProfile>(row);
 
 /** In-person places a trainer offers (legacy profiles with a gym = ['gym']). */
 export const placesOf = (t: Partial<Pick<TrainerProfile, 'inPersonPlaces' | 'sessionPreference' | 'gymLocation' | 'gyms'>>): InPersonPlace[] =>
@@ -40,23 +14,17 @@ export const placesOf = (t: Partial<Pick<TrainerProfile, 'inPersonPlaces' | 'ses
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfile[]> => {
-  let q = query(collection(db, COLLECTIONS.TRAINERS), where('isKYCApproved', '==', true));
-
+  let q = sb.from('trainers').select().eq('is_kyc_approved', true);
   if (filter?.sessionPreference && filter.sessionPreference !== 'both') {
-    q = query(q, where('sessionPreference', 'in', [filter.sessionPreference, 'both']));
+    q = q.in('session_preference', [filter.sessionPreference, 'both']);
   }
-  if (filter?.isAvailableNow) {
-    q = query(q, where('isAvailableNow', '==', true));
-  }
-  if (filter?.city) {
-    q = query(q, where('city', '==', filter.city));
-  }
+  if (filter?.isAvailableNow) q = q.eq('is_available_now', true);
+  if (filter?.city) q = q.eq('city', filter.city);
 
-  const snap = await getDocs(q);
-  let trainers = snap.docs.map((d) => toTrainerProfile(d.id, d.data()));
+  let trainers = must(await q).map(toTrainerProfile);
 
   // Note: client-side filtering is fine for a few hundred trainers per city;
-  // move to Algolia/Typesense when search gets slow.
+  // move these into the query (or a search index) when search gets slow.
   if (filter?.minRating) {
     trainers = trainers.filter((t) => t.rating >= filter.minRating!);
   }
@@ -89,69 +57,40 @@ export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfil
 };
 
 export const getTrainerById = async (id: string): Promise<TrainerProfile | null> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.TRAINERS, id));
-  return snap.exists() ? toTrainerProfile(snap.id, snap.data()) : null;
+  const row = must(await sb.from('trainers').select().eq('id', id).maybeSingle());
+  return row ? toTrainerProfile(row) : null;
 };
 
-export const getTopTrainersInCity = async (city: string, limitCount = 10): Promise<TrainerProfile[]> => {
-  const q = query(
-    collection(db, COLLECTIONS.TRAINERS),
-    where('isKYCApproved', '==', true),
-    where('city', '==', city),
-    orderBy('rating', 'desc'),
-    limit(limitCount)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => toTrainerProfile(d.id, d.data()));
-};
+export const getTopTrainersInCity = async (city: string, limitCount = 10): Promise<TrainerProfile[]> =>
+  must(await sb.from('trainers').select().eq('is_kyc_approved', true).eq('city', city)
+    .order('rating', { ascending: false }).limit(limitCount)).map(toTrainerProfile);
 
-export const subscribeToOwnTrainerProfile = (
-  uid: string,
-  callback: (profile: TrainerProfile | null) => void
-) =>
-  onSnapshot(doc(db, COLLECTIONS.TRAINERS, uid), (snap) =>
-    callback(snap.exists() ? toTrainerProfile(snap.id, snap.data()) : null)
-  );
+export const subscribeToOwnTrainerProfile = (uid: string, callback: (profile: TrainerProfile | null) => void) =>
+  live([{ table: 'trainers', filter: `id=eq.${uid}` }], async () => callback(await getTrainerById(uid)));
 
 // ─── Write ────────────────────────────────────────────────────────────────────
 
-/** Trainer doc id = the trainer's auth uid. */
+/** Trainer id = the trainer's auth uid. Approval, stats and fee counters are DB defaults only admins change. */
 export const createTrainerProfile = async (uid: string, data: Partial<TrainerProfile>): Promise<void> => {
-  await setDoc(doc(db, COLLECTIONS.TRAINERS, uid), {
-    ...withoutUndefined(data),
-    rating: 0,
-    totalReviews: 0,
-    totalSessions: 0,
-    // Hidden from clients until approved by hand in the Firebase console
-    isKYCApproved: false,
-    kycStatus: 'pending',
-    isAvailableNow: false,
-    availabilityStatus: 'offline',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const { id, rating, totalReviews, totalSessions, isKYCApproved, kycStatus, leadCount, feesPaid,
+    isAvailableNow, availabilityStatus, createdAt, updatedAt, ...rest } = data;
+  must(await sb.from('trainers').insert({ ...toRow(rest), id: uid, user_id: uid }));
 };
 
-/** Keys passed as `undefined` are removed from the document (e.g. switching to online-only clears the gym). */
+/** Keys passed as `undefined` are cleared (e.g. switching to online-only clears the gym). */
 export const updateTrainerProfile = async (id: string, data: Partial<TrainerProfile>): Promise<void> => {
-  const changes = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === undefined ? deleteField() : v]));
-  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), { ...changes, updatedAt: serverTimestamp() });
+  must(await sb.from('trainers').update(toRow(data, true)).eq('id', id));
 };
 
-export const updateAvailability = async (id: string, isAvailableNow: boolean): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.TRAINERS, id), {
-    isAvailableNow,
-    availabilityStatus: isAvailableNow ? 'available_now' : 'offline',
-    updatedAt: serverTimestamp(),
-  });
-};
+export const updateAvailability = async (id: string, isAvailableNow: boolean): Promise<void> =>
+  updateTrainerProfile(id, { isAvailableNow, availabilityStatus: isAvailableNow ? 'available_now' : 'offline' });
 
 export const updateTrainerRates = async (
   trainerId: string,
   rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
 ): Promise<void> => updateTrainerProfile(trainerId, rates);
 
-// ─── New-client fee ledger (written by the acceptBooking function) ──────────
+// ─── New-client fee ledger (written by accept_booking) ──────────────────────
 
 export interface Lead {
   clientId: string;
@@ -161,33 +100,26 @@ export interface Lead {
   createdAt: Date;
 }
 
-export const getTrainerLeads = async (uid: string): Promise<Lead[]> => {
-  const snap = await getDocs(query(collection(db, COLLECTIONS.TRAINERS, uid, 'leads'), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => ({ ...(d.data() as Lead), createdAt: toDate(d.data().createdAt) ?? new Date() }));
-};
+export const getTrainerLeads = async (uid: string): Promise<Lead[]> =>
+  must(await sb.from('leads').select().eq('trainer_id', uid).order('created_at', { ascending: false }))
+    .map((r) => ({ ...fromRow<Lead>(r), paymentRef: r.payment_ref ?? null }));
 
 // ─── Social handles (private until a booking is accepted) ────────────────────
 
 export const getTrainerSocial = async (uid: string): Promise<TrainerSocial> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.TRAINERS, uid, 'private', 'social'));
-  return (snap.data() as TrainerSocial) ?? {};
+  const row = must(await sb.from('trainer_private').select('instagram, youtube').eq('trainer_id', uid).maybeSingle());
+  return row ? fromRow<TrainerSocial>(row) : {};
 };
 
 export const saveTrainerSocial = async (uid: string, social: TrainerSocial): Promise<void> => {
-  await setDoc(doc(db, COLLECTIONS.TRAINERS, uid, 'private', 'social'), withoutUndefined(social));
+  must(await sb.from('trainer_private').upsert({ trainer_id: uid, instagram: social.instagram ?? null, youtube: social.youtube ?? null }));
 };
 
 // ─── Transformations ──────────────────────────────────────────────────────────
 
-export const getTransformations = async (trainerId: string): Promise<Transformation[]> => {
-  const q = query(
-    collection(db, COLLECTIONS.TRANSFORMATIONS),
-    where('trainerId', '==', trainerId),
-    orderBy('createdAt', 'desc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) ?? new Date() })) as Transformation[];
-};
+export const getTransformations = async (trainerId: string): Promise<Transformation[]> =>
+  must(await sb.from('transformations').select().eq('trainer_id', trainerId).order('created_at', { ascending: false }))
+    .map((r) => fromRow<Transformation>(r));
 
 export const addTransformation = async (
   data: Omit<Transformation, 'id' | 'aiVerified' | 'aiScore' | 'aiFlags' | 'createdAt'>
@@ -197,28 +129,14 @@ export const addTransformation = async (
     uploadImage(data.beforePhotoUrl, `transformations/${data.trainerId}/${stamp}_before.jpg`),
     uploadImage(data.afterPhotoUrl, `transformations/${data.trainerId}/${stamp}_after.jpg`),
   ]);
-  const ref = await addDoc(collection(db, COLLECTIONS.TRANSFORMATIONS), {
-    ...withoutUndefined(data),
-    beforePhotoUrl,
-    afterPhotoUrl,
-    aiVerified: false, // no AI check yet; never claim one
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+  return must(await sb.from('transformations').insert(toRow({ ...data, beforePhotoUrl, afterPhotoUrl })).select('id').single()).id;
 };
 
 // ─── Q&A (public) ─────────────────────────────────────────────────────────────
 
-export const getTrainerQA = async (trainerId: string): Promise<TrainerQA[]> => {
-  const q = query(collection(db, COLLECTIONS.QA), where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-    createdAt: toDate(d.data().createdAt) ?? new Date(),
-    answeredAt: toDate(d.data().answeredAt),
-  })) as TrainerQA[];
-};
+export const getTrainerQA = async (trainerId: string): Promise<TrainerQA[]> =>
+  must(await sb.from('qa').select().eq('trainer_id', trainerId).order('created_at', { ascending: false }))
+    .map((r) => fromRow<TrainerQA>(r));
 
 export const askTrainerQuestion = async (
   trainerId: string,
@@ -227,30 +145,18 @@ export const askTrainerQuestion = async (
   question: string,
   askerRole: 'client' | 'trainer' = 'client',
   askerPhoto?: string
-): Promise<string> => {
-  const ref = await addDoc(collection(db, COLLECTIONS.QA), {
-    trainerId,
-    clientId,
-    clientName,
-    question,
-    askerRole,
-    ...(askerPhoto && { askerPhoto }),
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
-};
+): Promise<string> =>
+  must(await sb.from('qa').insert(toRow({ trainerId, clientId, clientName, question, askerRole, askerPhoto })).select('id').single()).id;
 
 export const answerTrainerQuestion = async (qaId: string, answer: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.QA, qaId), { answer, answeredAt: serverTimestamp() });
+  must(await sb.from('qa').update({ answer, answered_at: new Date().toISOString() }).eq('id', qaId));
 };
 
 // ─── Reviews ──────────────────────────────────────────────────────────────────
 
-export const getTrainerReviews = async (trainerId: string): Promise<TrainerReview[]> => {
-  const q = query(collection(db, COLLECTIONS.REVIEWS), where('trainerId', '==', trainerId), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) ?? new Date() })) as TrainerReview[];
-};
+export const getTrainerReviews = async (trainerId: string): Promise<TrainerReview[]> =>
+  must(await sb.from('reviews').select().eq('trainer_id', trainerId).order('created_at', { ascending: false }))
+    .map((r) => fromRow<TrainerReview>(r));
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 

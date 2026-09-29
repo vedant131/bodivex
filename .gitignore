@@ -48,3 +48,6 @@ yarn-error.*
 functions/node_modules/
 functions/.env.local
 functions/.secret.local
+
+# Backend config (see .env.example)
+.env

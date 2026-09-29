@@ -1,31 +1,25 @@
-import { collection, doc, getDoc, getDocs, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { sb, fromRow, must, myId } from './backend';
 import { getTrainers } from './trainers';
 import { Gym, GymRef } from '../types/gym';
 import { TrainerProfile } from '../types/trainer';
 
-const GYMS = 'gyms';
-
-const toGym = (id: string, d: any): Gym => ({ id, ...d, createdAt: d.createdAt?.toDate?.() ?? new Date() });
-
 export const toRef = (g: Gym | GymRef): GymRef => ({ id: g.id, name: g.name, area: g.area });
 
-/** All gyms in a city, alphabetical. Note: fine for a few hundred per city; paginate/search index later. */
-export const getGymsInCity = async (city: string): Promise<Gym[]> => {
-  const snap = await getDocs(query(collection(db, GYMS), where('city', '==', city)));
-  return snap.docs.map((d) => toGym(d.id, d.data())).sort((a, b) => a.name.localeCompare(b.name));
-};
+/** All gyms in a city, alphabetical. Note: fine for a few hundred per city; paginate/search later. */
+export const getGymsInCity = async (city: string): Promise<Gym[]> =>
+  must(await sb.from('gyms').select().eq('city', city).order('name')).map((r) => fromRow<Gym>(r));
 
 export const getGym = async (id: string): Promise<Gym | null> => {
-  const snap = await getDoc(doc(db, GYMS, id));
-  return snap.exists() ? toGym(snap.id, snap.data()) : null;
+  const row = must(await sb.from('gyms').select().eq('id', id).maybeSingle());
+  return row ? fromRow<Gym>(row) : null;
 };
 
-/** Anyone signed in can add a missing gym (name + area). Rules block contact info and spoofed authors. */
+/** Anyone signed in can add a missing gym (name + area). The DB blocks contact info and spoofed authors. */
 export const addGym = async (g: { name: string; area: string; city: string }): Promise<Gym> => {
-  const data = { name: g.name.trim(), area: g.area.trim(), city: g.city, createdBy: auth.currentUser?.uid ?? '' };
-  const ref = await addDoc(collection(db, GYMS), { ...data, createdAt: serverTimestamp() });
-  return { id: ref.id, ...data, createdAt: new Date() };
+  const row = must(await sb.from('gyms')
+    .insert({ name: g.name.trim(), area: g.area.trim(), city: g.city, created_by: await myId() })
+    .select().single());
+  return fromRow<Gym>(row);
 };
 
 /** Approved trainers who train at this gym. */

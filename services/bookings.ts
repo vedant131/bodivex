@@ -1,34 +1,10 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  setDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  serverTimestamp,
-  writeBatch,
-} from 'firebase/firestore';
-import { db, functions, COLLECTIONS } from './firebase';
-import { httpsCallable } from 'firebase/functions';
-import { CONFIG } from '../constants/config';
-import { Session, SessionStatus, BookingRequest, ClientSummary } from '../types/session';
+import { sb, toRow, fromRow, must, live } from './backend';
+import { Session, BookingRequest, ClientSummary } from '../types/session';
 import { TrainerProfile } from '../types/trainer';
 import { getOrCreateChat } from './chat';
-import { slotKey, dateKey } from './slots';
+import { slotKey } from './slots';
 
-const toSession = (id: string, data: any): Session => ({
-  id,
-  ...data,
-  scheduledAt: data.scheduledAt?.toDate?.() ?? new Date(data.scheduledAt),
-  endedAt: data.endedAt?.toDate?.() ?? undefined,
-  createdAt: data.createdAt?.toDate?.() ?? new Date(),
-  updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-});
+const toSession = (row: any) => fromRow<Session>(row);
 
 export const createBooking = async (
   request: BookingRequest,
@@ -38,165 +14,86 @@ export const createBooking = async (
 ): Promise<string> => {
   // Chat stays locked until the trainer accepts
   const chatId = await getOrCreateChat({ id: clientId, name: clientName }, { id: trainer.id, name: trainer.name });
-
-  const key = slotKey(request.scheduledAt);
-  const sessionRef = doc(collection(db, COLLECTIONS.SESSIONS));
-  const sessionData: Omit<Session, 'id' | 'createdAt' | 'updatedAt'> = {
-    clientId,
-    trainerId: trainer.id,
-    clientName,
-    trainerName: trainer.name,
-    ...(trainer.profilePhoto && { trainerPhoto: trainer.profilePhoto }),
-    type: request.type,
-    status: 'pending' as SessionStatus,
-    scheduledAt: request.scheduledAt,
-    durationMins: request.durationMins,
-    slotKey: key,
-    price: request.price,
-    ...(request.place && { place: request.place, placeLabel: request.placeLabel }),
-    chatId,
-  };
-
-  // The slot lock can only be created once (see firestore.rules), so two clients
-  // tapping the same slot can't both succeed.
-  const batch = writeBatch(db);
-  batch.set(sessionRef, { ...sessionData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  batch.set(doc(db, COLLECTIONS.TRAINERS, trainer.id, 'slots', key), {
-    sessionId: sessionRef.id,
-    date: dateKey(request.scheduledAt),
-    createdAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e: any) {
-    if (e.code === 'permission-denied') throw new Error('Sorry, that slot was just booked. Please pick another time.');
-    throw e;
-  }
-  return sessionRef.id;
+  const { data, error } = await sb
+    .from('sessions')
+    .insert(toRow({
+      clientId,
+      trainerId: trainer.id,
+      clientName,
+      trainerName: trainer.name,
+      trainerPhoto: trainer.profilePhoto,
+      type: request.type,
+      scheduledAt: request.scheduledAt,
+      durationMins: request.durationMins,
+      slotKey: slotKey(request.scheduledAt),
+      price: request.price,
+      place: request.place,
+      placeLabel: request.place ? request.placeLabel : undefined,
+      chatId,
+    }))
+    .select('id')
+    .single();
+  // The DB's slot lock (unique trainer+hour) rejects the second of two clients tapping the same slot
+  if (error?.code === '23505') throw new Error('Sorry, that slot was just booked. Please pick another time.');
+  if (error) throw new Error(error.message);
+  return data.id;
 };
 
 /** Fee the trainer pays to accept this client now (0 for free quota or returning client). */
-export const getAcceptFee = async (trainerId: string, clientId: string, leadCount: number): Promise<number> => {
-  const lead = await getDoc(doc(db, COLLECTIONS.TRAINERS, trainerId, 'leads', clientId));
-  if (lead.exists()) return 0;
-  return leadCount >= CONFIG.freeClientsPerTrainer ? CONFIG.newClientFee : 0;
-};
+export const getAcceptFee = async (_trainerId: string, clientId: string, _leadCount: number): Promise<number> =>
+  must(await sb.rpc('accept_fee', { p_client: clientId })) as number;
 
 /**
- * Accepts through the acceptBooking Cloud Function, which charges the new-client
- * fee, confirms the session and unlocks chat. `payment` is simulated locally.
+ * Accepts through the accept_booking DB function, which charges the new-client fee,
+ * confirms the session and unlocks chat. `payment` is a test payment until Razorpay.
  */
-export const trainerAcceptSession = async (
-  sessionId: string,
-  payment?: 'dev-simulated'
-): Promise<{ fee: number }> => {
-  const call = httpsCallable<{ sessionId: string; payment?: string }, { fee: number }>(functions, 'acceptBooking');
-  return (await call({ sessionId, payment })).data;
+export const trainerAcceptSession = async (sessionId: string, payment?: 'test'): Promise<{ fee: number }> => {
+  const { data, error } = await sb.rpc('accept_booking', { p_session: sessionId, p_payment: payment ?? null });
+  if (error?.message === 'payment-required') throw new Error(`A ₹${error.details} new-client fee is due to accept this booking.`);
+  if (error) throw new Error(error.message);
+  return { fee: (data as any).fee };
 };
 
-export const trainerRejectSession = async (
-  sessionId: string,
-  reason?: string
-): Promise<void> => {
-  const ref = doc(db, COLLECTIONS.SESSIONS, sessionId);
-  const snap = await getDoc(ref);
-  const batch = writeBatch(db);
-  batch.update(ref, {
-    status: 'cancelled',
-    cancelReason: reason ?? 'Declined by trainer',
-    updatedAt: serverTimestamp(),
-  });
-  // Free the slot for other clients
-  const data = snap.data();
-  if (data?.slotKey) batch.delete(doc(db, COLLECTIONS.TRAINERS, data.trainerId, 'slots', data.slotKey));
-  await batch.commit();
+// Cancelling frees the slot automatically (the lock only counts live bookings).
+export const trainerRejectSession = async (sessionId: string, reason?: string): Promise<void> => {
+  must(await sb.from('sessions').update({ status: 'cancelled', cancel_reason: reason ?? 'Declined by trainer' }).eq('id', sessionId));
 };
 
-/** Client withdraws a pending request; the slot lock is released in the same batch. */
+/** Client withdraws a pending request. */
 export const clientCancelSession = async (session: Session): Promise<void> => {
-  const batch = writeBatch(db);
-  batch.update(doc(db, COLLECTIONS.SESSIONS, session.id), {
-    status: 'cancelled',
-    cancelReason: 'Cancelled by client',
-    updatedAt: serverTimestamp(),
-  });
-  if (session.slotKey) batch.delete(doc(db, COLLECTIONS.TRAINERS, session.trainerId, 'slots', session.slotKey));
-  await batch.commit();
+  must(await sb.from('sessions').update({ status: 'cancelled', cancel_reason: 'Cancelled by client' }).eq('id', session.id));
 };
 
-export const clientCompleteSession = async (
-  sessionId: string,
-  rating?: number,
-  review?: string
-): Promise<void> => {
-  const ref = doc(db, COLLECTIONS.SESSIONS, sessionId);
-  await updateDoc(ref, {
-    status: 'completed',
-    ...(rating && { clientRating: rating }),
-    ...(review && { clientReview: review }),
-    endedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
+export const clientCompleteSession = async (sessionId: string, rating?: number, review?: string): Promise<void> => {
+  const row = must(await sb.from('sessions')
+    .update(toRow({ status: 'completed', clientRating: rating || undefined, clientReview: review || undefined, endedAt: new Date() }))
+    .eq('id', sessionId)
+    .select()
+    .single());
   if (rating) {
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const data = snap.data();
-      await setDoc(doc(db, COLLECTIONS.REVIEWS, sessionId), {
-        sessionId,
-        clientId: data.clientId,
-        clientName: data.clientName,
-        trainerId: data.trainerId,
-        rating,
-        comment: review ?? '',
-        createdAt: serverTimestamp(),
-      });
-    }
+    must(await sb.from('reviews').insert({
+      id: sessionId, session_id: sessionId, client_id: row.client_id, client_name: row.client_name,
+      trainer_id: row.trainer_id, rating, comment: review ?? '',
+    }));
   }
 };
 
-export const getClientSessions = async (clientId: string): Promise<Session[]> => {
-  const col = collection(db, COLLECTIONS.SESSIONS);
-  const q = query(col, where('clientId', '==', clientId), orderBy('scheduledAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => toSession(d.id, d.data()));
-};
+const sessionsBy = async (col: 'client_id' | 'trainer_id', id: string) =>
+  must(await sb.from('sessions').select().eq(col, id).order('scheduled_at', { ascending: false })).map(toSession);
 
-export const getTrainerSessions = async (trainerId: string): Promise<Session[]> => {
-  const col = collection(db, COLLECTIONS.SESSIONS);
-  const q = query(col, where('trainerId', '==', trainerId), orderBy('scheduledAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => toSession(d.id, d.data()));
-};
+export const getClientSessions = (clientId: string) => sessionsBy('client_id', clientId);
+export const getTrainerSessions = (trainerId: string) => sessionsBy('trainer_id', trainerId);
 
 export const getSessionById = async (id: string): Promise<Session | null> => {
-  const ref = doc(db, COLLECTIONS.SESSIONS, id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return toSession(snap.id, snap.data());
+  const row = must(await sb.from('sessions').select().eq('id', id).maybeSingle());
+  return row ? toSession(row) : null;
 };
 
-export const subscribeToClientSessions = (
-  clientId: string,
-  callback: (sessions: Session[]) => void
-): (() => void) => {
-  const col = collection(db, COLLECTIONS.SESSIONS);
-  const q = query(col, where('clientId', '==', clientId), orderBy('scheduledAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => toSession(d.id, d.data())));
-  });
-};
+export const subscribeToClientSessions = (clientId: string, callback: (sessions: Session[]) => void) =>
+  live([{ table: 'sessions', filter: `client_id=eq.${clientId}` }], async () => callback(await getClientSessions(clientId)));
 
-export const subscribeToTrainerSessions = (
-  trainerId: string,
-  callback: (sessions: Session[]) => void
-): (() => void) => {
-  const col = collection(db, COLLECTIONS.SESSIONS);
-  const q = query(col, where('trainerId', '==', trainerId), orderBy('scheduledAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => toSession(d.id, d.data())));
-  });
-};
+export const subscribeToTrainerSessions = (trainerId: string, callback: (sessions: Session[]) => void) =>
+  live([{ table: 'sessions', filter: `trainer_id=eq.${trainerId}` }], async () => callback(await getTrainerSessions(trainerId)));
 
 export const getClientSummaries = async (trainerId: string): Promise<ClientSummary[]> => {
   const sessions = await getTrainerSessions(trainerId);

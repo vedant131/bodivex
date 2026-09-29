@@ -11,12 +11,11 @@ import { saveClientProfile, updateUserProfile } from '../../../services/auth';
 import { uploadImage } from '../../../services/storage';
 import { useAuthStore } from '../../../stores/authStore';
 import { FitnessGoal, FitnessBlueprint, FitnessGoalLabel } from '../../../types/user';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../../services/firebase';
+import { requestBlueprint } from '../../../services/ai';
 
 const AnimatedView = AnimatedR.View;
 
-// ─── Gemini AI Blueprint Generator ──────────────────────────────────────────
+// ─── AI Blueprint Generator ─────────────────────────────────────────────────
 
 const generateBlueprintWithAI = async (
   age: number,
@@ -27,13 +26,9 @@ const generateBlueprintWithAI = async (
   goals: FitnessGoal[]
 ): Promise<FitnessBlueprint> => {
   try {
-    const call = httpsCallable<object, { blueprint: Omit<FitnessBlueprint, 'goals' | 'generatedAt'> | null }>(
-      functions,
-      'generateBlueprint',
-      { timeout: 8000 } // never keep the user waiting on AI; fall back to the built-in plan
-    );
-    const { data } = await call({ age, gender, weight, height, fitnessLevel, goals: goals.map((g) => FitnessGoalLabel[g]) });
-    if (data.blueprint) return { goals, ...data.blueprint, generatedAt: new Date() };
+    // Never keep the user waiting on AI (8s cap); fall back to the built-in plan
+    const blueprint = await requestBlueprint({ age, gender, weight, height, fitnessLevel, goals: goals.map((g) => FitnessGoalLabel[g]) });
+    if (blueprint) return { goals, ...blueprint, generatedAt: new Date() };
   } catch (e) {
     console.warn('Blueprint function unavailable, using built-in blueprint', e);
   }

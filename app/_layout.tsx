@@ -31,7 +31,7 @@ export default function RootLayout() {
         if (session.user) setSession(session);
         else useAuthStore.getState().setLoading(false);
       } catch (e) {
-        console.warn('Could not load profile — is the emulator running? (npm run emulators)', e);
+        console.warn('Could not load profile — is the backend running? (npm run db:start)', e);
         setSession({ user: null, clientProfile: null, trainerProfile: null });
       }
     });

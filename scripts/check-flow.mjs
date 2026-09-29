@@ -1,240 +1,202 @@
-// End-to-end check of the booking flow, new-client fee and security rules against the
-// LOCAL emulator. Usage: `npm run emulators`, `npm run seed`, then `npm run check`.
-process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
-
+// End-to-end check of the booking flow, new-client fee and every security rule, run as real
+// users against the LOCAL stack. Usage: `npm run db:start`, then `npm run check:ci`
+// (resets the local DB) or `npm run seed && npm run check` (keeps your data).
 import assert from 'node:assert/strict';
-import { initializeApp, deleteApp } from 'firebase/app';
-import {
-  getAuth, connectAuthEmulator, createUserWithEmailAndPassword,
-} from 'firebase/auth';
-import {
-  getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, addDoc, updateDoc, getDocs,
-  collection, query, where, serverTimestamp, setLogLevel, writeBatch, deleteDoc, deleteField,
-} from 'firebase/firestore';
-import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
-import { initializeApp as initAdmin } from 'firebase-admin/app';
-import { getFirestore as adminDb, FieldValue } from 'firebase-admin/firestore';
+import { createClient } from '@supabase/supabase-js';
 
-// Ports come from `firebase emulators:exec` (check:ci) or default to `npm run emulators`
-const HOSTS = {
-  auth: process.env.FIREBASE_AUTH_EMULATOR_HOST,
-  firestore: process.env.FIRESTORE_EMULATOR_HOST,
-  functions: process.env.FUNCTIONS_EMULATOR_HOST ?? (process.env.FIRESTORE_EMULATOR_HOST?.endsWith(':18080') ? '127.0.0.1:15001' : '127.0.0.1:5001'),
-};
-const hostPort = (h) => { const [host, port] = h.split(':'); return [host, Number(port)]; };
+const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
+const admin = createClient(URL, SERVICE, noSession); // = what you do in Supabase Studio
 
-setLogLevel('silent'); // expected permission-denied errors are asserted below
-const admin = adminDb(initAdmin({ projectId: 'demo-bodivex' }));
-
-const PASSWORD = 'emulator-only-password';
+const must = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
 const uniq = () => `${Date.now()}${Math.floor(Math.random() * 1e4)}`.slice(-8);
-
-// One Firebase app per person, like separate phones.
-async function newUser(prefix) {
-  const phone = `+91${prefix}${uniq()}`;
-  const app = initializeApp({ apiKey: 'demo', projectId: 'demo-bodivex' }, phone);
-  const auth = getAuth(app);
-  connectAuthEmulator(auth, `http://${HOSTS.auth}`, { disableWarnings: true });
-  const db = getFirestore(app);
-  connectFirestoreEmulator(db, ...hostPort(HOSTS.firestore));
-  const fns = getFunctions(app);
-  connectFunctionsEmulator(fns, ...hostPort(HOSTS.functions));
-  const cred = await createUserWithEmailAndPassword(auth, `${phone.slice(1)}@phone.bodivex.dev`, PASSWORD);
-  return { app, db, fns, uid: cred.user.uid, phone };
-}
-
-const denied = async (promise, label) => {
-  await assert.rejects(promise, (e) => e.code === 'permission-denied', `should be denied: ${label}`);
-  console.log(`  ✓ blocked: ${label}`);
-};
 const ok = (label) => console.log(`  ✓ ${label}`);
 
-// ── Fresh approved trainer each run (admin = what you do in the emulator UI)
-const trainer = await newUser('70');
-await admin.doc(`trainers/${trainer.uid}`).set({
-  userId: trainer.uid, name: 'Check Coach', city: 'Mumbai', state: 'Maharashtra', specializations: [],
-  rating: 0, totalReviews: 0, totalSessions: 0, isKYCApproved: true, kycStatus: 'approved',
-  isAvailableNow: true, sessionPreference: 'both', pricingOnline: 499,
-});
-await admin.doc(`trainers/${trainer.uid}/private/social`).set({ instagram: 'check.coach' });
-const accept = (sessionId, payment) =>
-  httpsCallable(trainer.fns, 'acceptBooking')({ sessionId, ...(payment && { payment }) })
-    .then((r) => r.data)
-    .catch((e) => { if (process.env.DEBUG_CHECK) console.error('acceptBooking error', HOSTS, e.code, e.message, e.details); throw e; });
+/** Blocked = an error, or row-level security silently matched nothing. */
+const blocked = async (query, label) => {
+  const { data, error } = await query;
+  const nothing = error || data == null || (Array.isArray(data) && data.length === 0);
+  assert.ok(nothing, `should be blocked: ${label} — got ${JSON.stringify(data)}`);
+  console.log(`  ✓ blocked: ${label}`);
+};
+
+// One client per person, like separate phones.
+async function newUser(prefix, role) {
+  const db = createClient(URL, ANON, noSession);
+  const phone = `+91${prefix}${uniq()}`;
+  const { user } = must(await db.auth.signUp({ email: `${phone.slice(1)}@phone.bodivex.dev`, password: 'dev-only-password' }));
+  if (role) must(await db.from('users').insert({ id: user.id, phone, role, name: `Test ${role}` }));
+  return { db, uid: user.id, phone };
+}
+
+const VIDEO = 'https://example.com/intro.mp4';
+
+// ── Fresh approved trainer each run
+const trainer = await newUser('70', 'trainer');
+must(await trainer.db.from('trainers').insert({ id: trainer.uid, user_id: trainer.uid, name: 'Check Coach', city: 'Mumbai', pricing_online: 499, video_intro_url: VIDEO }));
+must(await admin.from('trainers').update({ is_kyc_approved: true, kyc_status: 'approved', is_available_now: true }).eq('id', trainer.uid));
+must(await trainer.db.from('trainer_private').insert({ trainer_id: trainer.uid, instagram: 'check.coach' }));
+const accept = (sessionId, payment = null) => trainer.db.rpc('accept_booking', { p_session: sessionId, p_payment: payment });
 
 // ── Client signs up
-const client = await newUser('88');
-await setDoc(doc(client.db, 'users', client.uid), {
-  phone: client.phone, name: 'Test Client', role: 'client', kycStatus: 'not_started', aadhaarVerified: false,
-  createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-});
-await setDoc(doc(client.db, 'clients', client.uid), { name: 'Test Client', city: 'Mumbai', userId: client.uid });
+const client = await newUser('88', 'client');
+must(await client.db.from('clients').upsert({ user_id: client.uid, name: 'Test Client', city: 'Mumbai' }));
 ok('client signed up');
-await denied(updateDoc(doc(client.db, 'users', client.uid), { role: 'trainer' }), 'client changing own role');
+await blocked(client.db.from('users').update({ role: 'trainer' }).eq('id', client.uid).select(), 'client changing own role');
+await blocked(client.db.from('users').insert({ id: trainer.uid, phone: 'x', role: 'client' }).select(), 'creating a user row for someone else');
 
 // ── Discovery
-const mumbai = await getDocs(query(collection(client.db, 'trainers'),
-  where('isKYCApproved', '==', true), where('city', '==', 'Mumbai')));
-assert.ok(mumbai.size >= 2, 'expected seeded Mumbai trainers (run `npm run seed`)');
-ok(`found ${mumbai.size} Mumbai trainers`);
-await denied(getDoc(doc(client.db, 'clients', trainer.uid)), "reading another user's private profile");
+const mumbai = must(await client.db.from('trainers').select('id').eq('is_kyc_approved', true).eq('city', 'Mumbai'));
+assert.ok(mumbai.length >= 2, 'expected seeded Mumbai trainers (run `npm run seed`)');
+ok(`found ${mumbai.length} Mumbai trainers`);
+await blocked(client.db.from('clients').select().eq('user_id', trainer.uid), "reading another user's private profile");
 
 // ── Trainer can't fake approval, stats or fee counters
-await denied(updateDoc(doc(trainer.db, 'trainers', trainer.uid), { rating: 5 }), 'trainer editing own rating');
-await denied(updateDoc(doc(trainer.db, 'trainers', trainer.uid), { leadCount: -99 }), 'trainer resetting fee counter');
-const pending = await newUser('77');
-await denied(setDoc(doc(pending.db, 'trainers', pending.uid), {
-  name: 'Sneaky', isKYCApproved: true, kycStatus: 'approved', rating: 0, totalReviews: 0, totalSessions: 0,
-}), 'new trainer self-approving');
-const pendingTrainer = { name: 'New Coach', isKYCApproved: false, kycStatus: 'pending', rating: 0, totalReviews: 0, totalSessions: 0 };
-await denied(setDoc(doc(pending.db, 'trainers', pending.uid), pendingTrainer), 'trainer signing up without an intro video');
-await setDoc(doc(pending.db, 'trainers', pending.uid), { ...pendingTrainer, videoIntroUrl: 'https://example.com/intro.mp4' });
-ok('trainer signs up with an intro video');
-await denied(updateDoc(doc(pending.db, 'trainers', pending.uid), { videoIntroUrl: deleteField() }), 'trainer removing their intro video');
+await blocked(trainer.db.from('trainers').update({ rating: 5 }).eq('id', trainer.uid).select(), 'trainer editing own rating');
+await blocked(trainer.db.from('trainers').update({ lead_count: -99 }).eq('id', trainer.uid).select(), 'trainer resetting fee counter');
+const pending = await newUser('77', 'trainer');
+await blocked(pending.db.from('trainers').insert({ id: pending.uid, user_id: pending.uid, name: 'Sneaky', is_kyc_approved: true, video_intro_url: VIDEO }).select(),
+  'new trainer self-approving');
+await blocked(pending.db.from('trainers').insert({ id: pending.uid, user_id: pending.uid, name: 'New Coach' }).select(),
+  'trainer signing up without an intro video');
+must(await pending.db.from('trainers').insert({ id: pending.uid, user_id: pending.uid, name: 'New Coach', video_intro_url: VIDEO }));
+ok('trainer signs up with an intro video (pending approval)');
+await blocked(pending.db.from('trainers').update({ video_intro_url: null }).eq('id', pending.uid).select(), 'trainer removing their intro video');
+await blocked(client.db.from('trainers').select().eq('id', pending.uid), 'client seeing an unapproved trainer');
 
-// ── Booking = session + slot lock in one batch (same shape as createBooking())
+// ── Booking: the DB's slot lock allows one live booking per trainer-hour
 let hour = 0;
-const book = async (who) => {
-  const chat = await addDoc(collection(who.db, 'chats'), {
-    participants: [who.uid, trainer.uid], participantNames: {}, trainerId: trainer.uid,
-    unreadCount: {}, isUnlocked: false, createdAt: serverTimestamp(), lastMessageAt: serverTimestamp(),
-  });
-  const key = `2099-01-01-${String(hour++).padStart(2, '0')}-${uniq()}`;
-  const ref = doc(collection(who.db, 'sessions'));
-  const batch = writeBatch(who.db);
-  batch.set(ref, {
-    clientId: who.uid, trainerId: trainer.uid, clientName: 'Test', trainerName: 'Check Coach',
-    type: 'online', status: 'pending', scheduledAt: new Date(Date.now() + 86400000), durationMins: 60,
-    slotKey: key, price: 499, chatId: chat.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-  });
-  batch.set(doc(who.db, 'trainers', trainer.uid, 'slots', key), {
-    sessionId: ref.id, date: key.slice(0, 10), createdAt: serverTimestamp(),
-  });
-  await batch.commit();
-  return { id: ref.id, key, chatId: chat.id };
+const book = async (who, key = `2099-01-01-${String(hour++).padStart(2, '0')}-${uniq()}`) => {
+  const chat = must(await who.db.from('chats').insert({ participants: [who.uid, trainer.uid], trainer_id: trainer.uid }).select('id').single());
+  const s = await who.db.from('sessions').insert({
+    client_id: who.uid, trainer_id: trainer.uid, client_name: 'Test', trainer_name: 'Check Coach', type: 'online',
+    scheduled_at: new Date(Date.now() + 86400e3).toISOString(), slot_key: key, price: 499, chat_id: chat.id,
+  }).select('id').single();
+  return { ...s, id: s.data?.id, key, chatId: chat.id };
 };
 
 const first = await book(client);
+assert.ok(first.id, first.error?.message);
 ok('client booked a slot');
-const rival = await newUser('66');
-await denied((async () => {
-  const b = writeBatch(rival.db);
-  const ref = doc(collection(rival.db, 'sessions'));
-  b.set(ref, { clientId: rival.uid, trainerId: trainer.uid, status: 'pending', slotKey: first.key, scheduledAt: new Date() });
-  b.set(doc(rival.db, 'trainers', trainer.uid, 'slots', first.key), { sessionId: ref.id, date: '2099-01-01', createdAt: serverTimestamp() });
-  await b.commit();
-})(), 'second client double-booking the same slot');
-await denied(deleteDoc(doc(rival.db, 'trainers', trainer.uid, 'slots', first.key)), "client deleting another's slot lock");
-await denied(addDoc(collection(client.db, 'sessions'), {
-  clientId: client.uid, trainerId: pending.uid, status: 'pending',
-}), 'booking an unapproved trainer');
+const rival = await newUser('66', 'client');
+await blocked(book(rival, first.key), 'second client double-booking the same slot');
+await blocked(rival.db.from('sessions').select().eq('id', first.id), "reading someone else's booking");
+assert.ok(must(await rival.db.rpc('booked_slot_keys', { p_trainer: trainer.uid })).includes(first.key));
+ok('others see the hour as busy (key only)');
+await blocked(client.db.from('sessions').insert({
+  client_id: client.uid, trainer_id: pending.uid, client_name: 'x', trainer_name: 'x', type: 'online',
+  scheduled_at: new Date().toISOString(), slot_key: 'x', price: 1,
+}).select(), 'booking an unapproved trainer');
+await blocked(client.db.from('sessions').insert({
+  client_id: rival.uid, trainer_id: trainer.uid, client_name: 'x', trainer_name: 'x', type: 'online',
+  scheduled_at: new Date().toISOString(), slot_key: 'y', price: 1,
+}).select(), 'booking on behalf of someone else');
 
-// ── Accepting: only via acceptBooking (fee), never by writing directly
-await denied(updateDoc(doc(trainer.db, 'sessions', first.id), { status: 'confirmed', updatedAt: serverTimestamp() }),
-  'trainer confirming without the fee check');
-await denied(updateDoc(doc(trainer.db, 'chats', first.chatId), { isUnlocked: true }), 'trainer unlocking chat directly');
-await denied(addDoc(collection(client.db, 'chats', first.chatId, 'messages'), {
-  senderId: client.uid, type: 'text', text: 'hi',
-}), 'messaging before trainer accepts');
+// ── Accepting: only via accept_booking (fee), never by writing directly
+await blocked(trainer.db.from('sessions').update({ status: 'confirmed' }).eq('id', first.id).select(), 'trainer confirming without the fee check');
+await blocked(trainer.db.from('chats').update({ is_unlocked: true }).eq('id', first.chatId).select(), 'trainer unlocking chat directly');
+await blocked(client.db.rpc('send_message', { p_chat: first.chatId, p_type: 'text', p_text: 'hi', p_photo_url: null, p_voice_url: null, p_voice_secs: null, p_sender_name: 'x' }),
+  'messaging before trainer accepts');
+await blocked(client.db.from('messages').insert({ chat_id: first.chatId, sender_id: client.uid, text: 'hi' }).select(), 'writing messages directly');
+await blocked(client.db.from('trainer_private').select().eq('trainer_id', trainer.uid), "client reading trainer's socials");
+await blocked(rival.db.rpc('accept_booking', { p_session: first.id, p_payment: null }), 'someone else accepting the booking');
 
-await denied(getDoc(doc(client.db, 'trainers', trainer.uid, 'private', 'social')), "client reading trainer's socials before booking");
-assert.equal((await accept(first.id)).fee, 0);
+assert.equal(must(await accept(first.id)).fee, 0);
 ok('new client #1 accepted free');
-assert.equal((await getDoc(doc(client.db, 'sessions', first.id))).data().trainerSocial?.instagram, 'check.coach');
+const confirmed = must(await client.db.from('sessions').select().eq('id', first.id).single());
+assert.equal(confirmed.trainer_social?.instagram, 'check.coach');
 ok('socials revealed to client only after acceptance');
-await addDoc(collection(client.db, 'chats', first.chatId, 'messages'), {
-  senderId: client.uid, type: 'text', text: 'See you tomorrow!', read: false, timestamp: serverTimestamp(),
-});
-ok('chat unlocked by acceptance');
-const confirmed = (await getDoc(doc(client.db, 'sessions', first.id))).data();
-assert.ok(confirmed.videoCallRoomId, 'online session gets a video room');
+assert.ok(confirmed.video_call_room_id, 'online session gets a video room');
 ok('online session got a video room');
+must(await client.db.rpc('send_message', { p_chat: first.chatId, p_type: 'text', p_text: 'See you tomorrow!', p_photo_url: null, p_voice_url: null, p_voice_secs: null, p_sender_name: 'Test Client' }));
+const chatRow = must(await trainer.db.from('chats').select().eq('id', first.chatId).single());
+assert.equal(chatRow.unread_count[trainer.uid], 1);
+ok('chat unlocked by acceptance; trainer has 1 unread');
+must(await trainer.db.rpc('mark_chat_read', { p_chat: first.chatId }));
+assert.equal(must(await trainer.db.from('chats').select('unread_count').eq('id', first.chatId).single()).unread_count[trainer.uid], 0);
+ok('mark as read resets the count');
+await blocked(rival.db.from('messages').select().eq('chat_id', first.chatId), "reading someone else's chat");
 
 // Clients #2 and #3 free, #4 must pay
 for (const n of [2, 3]) {
-  const c = await newUser('55');
-  assert.equal((await accept((await book(c)).id)).fee, 0);
+  const c = await newUser('55', 'client');
+  assert.equal(must(await accept((await book(c)).id)).fee, 0);
   ok(`new client #${n} accepted free`);
 }
-const fourth = await newUser('44');
+const fourth = await newUser('44', 'client');
 const fourthBooking = await book(fourth);
-await assert.rejects(accept(fourthBooking.id), (e) => e.message === 'payment-required' && e.details?.fee === 149);
+assert.equal(must(await trainer.db.rpc('accept_fee', { p_client: fourth.uid })), 149);
+const unpaid = await accept(fourthBooking.id);
+assert.equal(unpaid.error?.message, 'payment-required'); assert.equal(unpaid.error?.details, '149');
 ok('new client #4 blocked until ₹149 is paid');
-assert.equal((await accept(fourthBooking.id, 'dev-simulated')).fee, 149);
-ok('new client #4 accepted after payment');
-assert.equal((await accept((await book(client)).id)).fee, 0);
+assert.equal(must(await accept(fourthBooking.id, 'test')).fee, 149);
+ok('new client #4 accepted after (test) payment');
+assert.equal(must(await accept((await book(client)).id)).fee, 0);
 ok('returning client accepted free');
-const t = (await admin.doc(`trainers/${trainer.uid}`).get()).data();
-assert.equal(t.leadCount, 4); assert.equal(t.feesPaid, 149);
+const t = must(await admin.from('trainers').select().eq('id', trainer.uid).single());
+assert.equal(t.lead_count, 4); assert.equal(t.fees_paid, 149);
+assert.equal(must(await trainer.db.from('leads').select()).length, 4);
 ok('ledger: 4 clients, ₹149 paid');
+await blocked(client.db.from('leads').select().eq('trainer_id', trainer.uid), "client reading the trainer's fee ledger");
 
 // ── Not taking bookings → clients can't request
-await updateDoc(doc(trainer.db, 'trainers', trainer.uid), { isAvailableNow: false });
-await denied(book(await newUser('33')), 'booking while trainer is not taking bookings');
-await updateDoc(doc(trainer.db, 'trainers', trainer.uid), { isAvailableNow: true });
+must(await trainer.db.from('trainers').update({ is_available_now: false }).eq('id', trainer.uid));
+await blocked(book(await newUser('33', 'client')), 'booking while trainer is not taking bookings');
+must(await trainer.db.from('trainers').update({ is_available_now: true }).eq('id', trainer.uid));
 
-// ── Decline frees the slot
+// ── Decline / cancel free the slot
 const toDecline = await book(rival);
-const b = writeBatch(trainer.db);
-b.update(doc(trainer.db, 'sessions', toDecline.id), { status: 'cancelled', cancelReason: 'busy', updatedAt: serverTimestamp() });
-b.delete(doc(trainer.db, 'trainers', trainer.uid, 'slots', toDecline.key));
-await b.commit();
-ok('trainer declined and freed the slot');
-
-// ── Client cancels a pending request → slot is freed for others
+must(await trainer.db.from('sessions').update({ status: 'cancelled', cancel_reason: 'busy' }).eq('id', toDecline.id));
+assert.ok((await book(fourth, toDecline.key)).id);
+ok('trainer declined and the slot was bookable again');
 const toCancel = await book(client);
-const cb = writeBatch(client.db);
-cb.update(doc(client.db, 'sessions', toCancel.id), { status: 'cancelled', cancelReason: 'Cancelled by client', updatedAt: serverTimestamp() });
-cb.delete(doc(client.db, 'trainers', trainer.uid, 'slots', toCancel.key));
-await cb.commit();
-ok('client cancelled request and freed the slot');
+await blocked(client.db.from('sessions').update({ status: 'confirmed' }).eq('id', toCancel.id).select(), 'client confirming own booking');
+must(await client.db.from('sessions').update({ status: 'cancelled', cancel_reason: 'Cancelled by client' }).eq('id', toCancel.id));
+assert.ok((await book(rival, toCancel.key)).id);
+ok('client cancelled and the slot was bookable again');
 
-// ── Complete + review → rating/totals updated by functions
-await denied(updateDoc(doc(client.db, 'sessions', first.id), { status: 'completed', clientRating: 5, updatedAt: serverTimestamp() }),
+// ── Complete + review → rating/totals updated by triggers
+await blocked(client.db.from('sessions').update({ status: 'completed', client_rating: 5 }).eq('id', first.id).select(),
   'completing (and reviewing) before the session time');
-await admin.doc(`sessions/${first.id}`).update({ scheduledAt: new Date(Date.now() - 3600e3) }); // session happened
-await updateDoc(doc(client.db, 'sessions', first.id), { status: 'completed', clientRating: 4, updatedAt: serverTimestamp() });
-await setDoc(doc(client.db, 'reviews', first.id), {
-  sessionId: first.id, clientId: client.uid, clientName: 'Test Client', trainerId: trainer.uid,
-  rating: 4, comment: 'Great session', createdAt: serverTimestamp(),
-});
-await denied(setDoc(doc(client.db, 'reviews', first.id), {
-  sessionId: first.id, clientId: client.uid, trainerId: trainer.uid, rating: 1,
-}), 'overwriting an existing review');
-for (let i = 0; i < 20; i++) {
-  const s = (await admin.doc(`trainers/${trainer.uid}`).get()).data();
-  if (s.totalReviews === 1 && s.totalSessions === 1) break;
-  await new Promise((r) => setTimeout(r, 300));
-}
-const stats = (await admin.doc(`trainers/${trainer.uid}`).get()).data();
-assert.equal(stats.rating, 4); assert.equal(stats.totalReviews, 1); assert.equal(stats.totalSessions, 1);
+await blocked(client.db.from('reviews').insert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 5 }).select(),
+  'reviewing a session that is not completed');
+must(await admin.from('sessions').update({ scheduled_at: new Date(Date.now() - 3600e3).toISOString() }).eq('id', first.id)); // it happened
+must(await client.db.from('sessions').update({ status: 'completed', client_rating: 4 }).eq('id', first.id));
+must(await client.db.from('reviews').insert({ id: first.id, session_id: first.id, client_id: client.uid, client_name: 'Test Client', trainer_id: trainer.uid, rating: 4, comment: 'Great session' }));
+await blocked(client.db.from('reviews').upsert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 1 }).select(),
+  'overwriting an existing review');
+const stats = must(await admin.from('trainers').select('rating, total_reviews, total_sessions').eq('id', trainer.uid).single());
+assert.equal(Number(stats.rating), 4); assert.equal(stats.total_reviews, 1); assert.equal(stats.total_sessions, 1);
 ok('review updated rating (4.0) and session count');
 
 // ── Gym directory
-const gymDoc = await addDoc(collection(client.db, 'gyms'), { name: 'Check Gym Baner', area: 'Baner', city: 'Pune', createdBy: client.uid, createdAt: serverTimestamp() });
+const gym = must(await client.db.from('gyms').insert({ name: 'Check Gym Baner', area: 'Baner', city: 'Pune', created_by: client.uid }).select().single());
 ok('client added a gym to the directory');
-await denied(addDoc(collection(client.db, 'gyms'), { name: 'Fake Gym', area: 'x', city: 'Pune', createdBy: trainer.uid, createdAt: serverTimestamp() }),
-  'adding a gym as someone else');
-await denied(addDoc(collection(client.db, 'gyms'), { name: 'Call 98765 43210', area: 'x', city: 'Pune', createdBy: client.uid, createdAt: serverTimestamp() }),
-  'contact info in a gym name');
-await denied(updateDoc(doc(client.db, 'gyms', gymDoc.id), { name: 'Renamed' }), 'editing a gym entry');
+await blocked(client.db.from('gyms').insert({ name: 'Fake Gym', area: 'x', city: 'Pune', created_by: trainer.uid }).select(), 'adding a gym as someone else');
+await blocked(client.db.from('gyms').insert({ name: 'Call 98765 43210', area: 'x', city: 'Pune', created_by: client.uid }).select(), 'contact info in a gym name');
+await blocked(client.db.from('gyms').update({ name: 'Renamed' }).eq('id', gym.id).select(), 'editing a gym entry');
 
 // ── Public Q&A: no contact details
-const ask = (question) => addDoc(collection(client.db, 'qa'), {
-  trainerId: trainer.uid, clientId: client.uid, clientName: 'Test Client', askerRole: 'client',
-  question, createdAt: serverTimestamp(),
-});
-const qa = await ask('Do you train beginners?');
+const ask = (question) => client.db.from('qa').insert({ trainer_id: trainer.uid, client_id: client.uid, client_name: 'Test Client', question }).select('id').single();
+const qa = must(await ask('Do you train beginners?'));
 ok('client asked a normal question');
-await denied(ask('call me on 98765 43210'), 'phone number in Q&A');
-await denied(ask('see instagram.com/me'), 'link / social in Q&A');
-await denied(ask('mail me at a@b.co'), 'email in Q&A');
-await denied(updateDoc(doc(client.db, 'qa', qa.id), { answer: 'fake answer' }), 'client answering for trainer');
-await denied(updateDoc(doc(trainer.db, 'qa', qa.id), { answer: 'WhatsApp me', answeredAt: serverTimestamp() }),
-  'trainer sharing contact in answer');
-await updateDoc(doc(trainer.db, 'qa', qa.id), { answer: 'Yes!', answeredAt: serverTimestamp() });
+await blocked(ask('call me on 98765 43210'), 'phone number in Q&A');
+await blocked(ask('see instagram.com/me'), 'link / social in Q&A');
+await blocked(ask('mail me at a@b.co'), 'email in Q&A');
+await blocked(client.db.from('qa').update({ answer: 'fake answer' }).eq('id', qa.id).select(), 'client answering for trainer');
+await blocked(trainer.db.from('qa').update({ answer: 'WhatsApp me' }).eq('id', qa.id).select(), 'trainer sharing contact in answer');
+must(await trainer.db.from('qa').update({ answer: 'Yes!', answered_at: new Date().toISOString() }).eq('id', qa.id));
 ok('trainer answered question');
 
+// ── File storage: own folder only
+const png = new Uint8Array([137, 80, 78, 71]);
+must(await client.db.storage.from('media').upload(`users/${client.uid}/profile.jpg`, png, { contentType: 'image/jpeg', upsert: true }));
+ok('user uploaded to own folder');
+await blocked(client.db.storage.from('media').upload(`users/${trainer.uid}/profile.jpg`, png, { contentType: 'image/jpeg', upsert: true }),
+  "uploading into someone else's folder");
+await blocked(client.db.storage.from('media').upload(`users/${client.uid}/evil.html`, png, { contentType: 'text/html', upsert: true }),
+  'uploading a non-image/video file');
+
 console.log('\nAll checks passed.');
-process.exit(0);

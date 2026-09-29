@@ -1,107 +1,86 @@
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, COLLECTIONS, USE_EMULATORS } from './firebase';
+import { sb, toRow, fromRow, must, IS_LOCAL_BACKEND } from './backend';
 import { User, UserRole, ClientProfile } from '../types/user';
 import { TrainerProfile } from '../types/trainer';
 
-const toDate = (v: any) => v?.toDate?.() ?? (v ? new Date(v) : new Date());
+export type AuthUser = { uid: string };
+
+/** Test sign-in (no real SMS): always on locally, opt-in for a test deployment. */
+export const DEV_LOGIN = IS_LOCAL_BACKEND || process.env.EXPO_PUBLIC_ALLOW_DEV_LOGIN === 'true';
 
 // ─── Sign in ──────────────────────────────────────────────────────────────────
 
 /**
- * Dev-only sign-in: the Auth emulator stands in for SMS OTP, keyed by phone
- * number, so the same phone always maps to the same account.
- * Note: real SMS OTP needs @react-native-firebase/auth + a dev build; add before launch.
+ * Dev sign-in: stands in for SMS OTP, keyed by phone number, so the same phone
+ * always maps to the same account.
+ * Note: anyone who knows a number can sign in as it. Fine locally and for a
+ * friends-only test deployment (EXPO_PUBLIC_ALLOW_DEV_LOGIN=true); real SMS OTP before launch.
  */
-export const signInWithPhone = async (phone: string): Promise<FirebaseUser> => {
-  if (!USE_EMULATORS) {
-    throw new Error('Phone OTP is not configured for release builds yet.');
+export const signInWithPhone = async (phone: string): Promise<AuthUser> => {
+  if (!DEV_LOGIN) {
+    throw new Error('Phone OTP is not configured for this build yet.');
   }
   const email = `${phone.replace(/\D/g, '')}@phone.bodivex.dev`;
-  const password = 'emulator-only-password';
-  try {
-    return (await signInWithEmailAndPassword(auth, email, password)).user;
-  } catch (e: any) {
-    if (e.code !== 'auth/user-not-found' && e.code !== 'auth/invalid-credential') throw e;
-    return (await createUserWithEmailAndPassword(auth, email, password)).user;
-  }
+  const password = 'dev-only-password';
+  const signIn = await sb.auth.signInWithPassword({ email, password });
+  if (signIn.data.user) return { uid: signIn.data.user.id };
+  if (!/invalid login credentials/i.test(signIn.error?.message ?? '')) throw new Error(signIn.error?.message);
+  const signUp = must(await sb.auth.signUp({ email, password }));
+  if (!signUp.user) throw new Error('Could not create your account.');
+  return { uid: signUp.user.id };
 };
 
 export const logout = async (): Promise<void> => {
-  await signOut(auth);
+  await sb.auth.signOut();
 };
 
-export const subscribeToAuthState = (callback: (user: FirebaseUser | null) => void) =>
-  onAuthStateChanged(auth, callback);
-
-// ─── User doc ─────────────────────────────────────────────────────────────────
-
-export const createUserProfile = async (
-  uid: string,
-  data: { phone: string; role: UserRole }
-): Promise<User> => {
-  const user: Omit<User, 'id'> = {
-    phone: data.phone,
-    name: '',
-    role: data.role,
-    kycStatus: 'not_started',
-    aadhaarVerified: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  await setDoc(doc(db, COLLECTIONS.USERS, uid), {
-    ...user,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+export const subscribeToAuthState = (callback: (user: AuthUser | null) => void) => {
+  let last: string | undefined | null = null;
+  const { data } = sb.auth.onAuthStateChange((_event, session) => {
+    const uid = session?.user.id;
+    if (uid === last) return; // token refreshes fire too; only report sign-in / sign-out
+    last = uid;
+    // Don't query inside the auth callback (supabase-js lock); defer a tick
+    setTimeout(() => callback(uid ? { uid } : null), 0);
   });
-  return { id: uid, ...user };
+  return () => data.subscription.unsubscribe();
+};
+
+// ─── User row ─────────────────────────────────────────────────────────────────
+
+export const createUserProfile = async (uid: string, data: { phone: string; role: UserRole }): Promise<User> => {
+  const row = must(await sb.from('users').insert({ id: uid, phone: data.phone, role: data.role }).select().single());
+  return fromRow<User>(row);
 };
 
 export const getUserProfile = async (uid: string): Promise<User | null> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return { id: snap.id, ...data, createdAt: toDate(data.createdAt), updatedAt: toDate(data.updatedAt) } as User;
+  const row = must(await sb.from('users').select().eq('id', uid).maybeSingle());
+  return row ? fromRow<User>(row) : null;
 };
 
 export const updateUserProfile = async (uid: string, data: Partial<User>): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.USERS, uid), { ...data, updatedAt: serverTimestamp() });
+  must(await sb.from('users').update(toRow(data)).eq('id', uid));
 };
 
-// ─── Role profiles (doc id = uid) ─────────────────────────────────────────────
+// ─── Role profiles (id = uid) ─────────────────────────────────────────────────
 
 export const getClientProfile = async (uid: string): Promise<ClientProfile | null> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.CLIENTS, uid));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return { ...data, userId: uid, createdAt: toDate(data.createdAt), updatedAt: toDate(data.updatedAt) } as ClientProfile;
+  const row = must(await sb.from('clients').select().eq('user_id', uid).maybeSingle());
+  return row ? fromRow<ClientProfile>(row) : null;
 };
 
 export const saveClientProfile = async (
   uid: string,
   profile: Partial<ClientProfile>,
-  { isNew = false }: { isNew?: boolean } = {}
+  _opts: { isNew?: boolean } = {}
 ): Promise<void> => {
-  const { createdAt, updatedAt, ...rest } = profile;
-  const clean = JSON.parse(JSON.stringify(rest)); // drops undefined, Dates → ISO strings
-  await setDoc(
-    doc(db, COLLECTIONS.CLIENTS, uid),
-    { ...clean, userId: uid, ...(isNew && { createdAt: serverTimestamp() }), updatedAt: serverTimestamp() },
-    { merge: true }
-  );
+  const { createdAt, updatedAt, aadhaarVerified, ...rest } = profile;
+  const clean = JSON.parse(JSON.stringify(rest)); // drops undefined, nested Dates → ISO strings
+  must(await sb.from('clients').upsert({ ...toRow(clean), user_id: uid }));
 };
 
 export const getOwnTrainerProfile = async (uid: string): Promise<TrainerProfile | null> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.TRAINERS, uid));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return { id: uid, ...data, createdAt: toDate(data.createdAt), updatedAt: toDate(data.updatedAt) } as TrainerProfile;
+  const row = must(await sb.from('trainers').select().eq('id', uid).maybeSingle());
+  return row ? fromRow<TrainerProfile>(row) : null;
 };
 
 /** Loads everything the app needs after sign-in. */
