@@ -12,6 +12,7 @@ import { PressableScale } from '../components/ui/PressableScale';
 import { Avatar, Chip, IconButton } from '../components/ui/Bits';
 import { T, type } from '../constants/theme';
 import { TrainerProfile } from '../types/trainer';
+import { Skeleton } from '../components/ui/Skeleton';
 
 const MODES: { id: RankingMode; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -81,7 +82,7 @@ export default function LeaderboardScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+          <Skeleton variant="row" count={5} />
         ) : ranked.length === 0 ? (
           <Glass radius={T.radius.xl} style={styles.empty}>
             <Text style={type.caption}>No coaches match these filters yet.</Text>

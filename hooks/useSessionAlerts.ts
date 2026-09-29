@@ -4,6 +4,8 @@ import * as Notifications from 'expo-notifications';
 import { subscribeToClientSessions, subscribeToTrainerSessions } from '../services/bookings';
 import { subscribeToOwnTrainerProfile } from '../services/trainers';
 import { useAuthStore } from '../stores/authStore';
+import { useBadges } from '../stores/badgeStore';
+import { subscribeToChats } from '../services/chat';
 import { Session } from '../types/session';
 
 Notifications.setNotificationHandler({
@@ -38,6 +40,9 @@ export function useSessionAlerts(role: 'client' | 'trainer') {
     seen.current = null;
 
     const onSessions = (list: Session[]) => {
+      useBadges.setState({
+        pendingRequests: role === 'trainer' ? list.filter((s) => s.status === 'pending' && s.scheduledAt.getTime() > Date.now()).length : 0,
+      });
       const prev = seen.current;
       seen.current = new Map(list.map((s) => [s.id, s.status]));
       if (!prev) return; // first snapshot: nothing is "new"
@@ -61,6 +66,11 @@ export function useSessionAlerts(role: 'client' | 'trainer') {
         ? subscribeToClientSessions(user.id, onSessions)
         : subscribeToTrainerSessions(user.id, onSessions),
     ];
+    unsubs.push(
+      subscribeToChats(user.id, (chats) =>
+        useBadges.setState({ chatsUnread: chats.reduce((n, c) => n + (c.unreadCount?.[user.id] ?? 0), 0) })
+      )
+    );
     // Keep fee counters / approval fresh on the trainer side
     if (role === 'trainer') unsubs.push(subscribeToOwnTrainerProfile(user.id, (p) => p && setTrainerProfile(p)));
     return () => unsubs.forEach((u) => u());

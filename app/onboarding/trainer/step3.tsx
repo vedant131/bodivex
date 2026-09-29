@@ -30,7 +30,7 @@ export default function TrainerStep3() {
   };
 
   return (
-    <OnboardingShell preset="trainer" step={3} total={4} title="Your prices" subtitle="Per 60-minute session. Clients pay you directly." cta="Next" onNext={next} canNext={valid}>
+    <OnboardingShell preset="trainer" step={3} total={5} title="Your prices" subtitle="Per 60-minute session. Clients pay you directly." cta="Next" onNext={next} canNext={valid}>
       <View style={{ flexDirection: 'row', gap: 12 }}>
         {online && (
           <View style={{ flex: 1 }}>

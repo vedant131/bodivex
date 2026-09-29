@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,8 @@ import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { Session } from '../../types/session';
+import { Alert, celebrate } from '../../components/ui/Feedback';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 const WEEK_TARGET = 10;
 const when = (d: Date) => d.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -63,7 +65,7 @@ export default function TrainerDashboardScreen() {
     setBusyId(req.id);
     try {
       const { fee } = await trainerAcceptSession(req.id, payment);
-      Alert.alert('Booking confirmed', `${fee ? `Paid ₹${fee}. ` : ''}${req.clientName} has been notified and chat is open.`);
+      celebrate('Client accepted', `${fee ? `Paid ₹${fee}. ` : ''}${req.clientName} has been notified and chat is open.`);
     } catch (e: any) {
       Alert.alert('Could not accept', e.message);
     } finally {
@@ -192,7 +194,7 @@ export default function TrainerDashboardScreen() {
           <View style={{ marginTop: 8 }}>
             <Section title="Requests" action={freeLeft > 0 ? `${freeLeft} free left` : `₹${CONFIG.newClientFee}/new client`} />
             {loading ? (
-              <ActivityIndicator color={T.text} />
+              <Skeleton variant="card" count={2} />
             ) : stats.pending.length === 0 ? (
               <Glass radius={T.radius.lg} style={styles.empty}>
                 <Ionicons name="mail-open-outline" size={20} color={T.text2} />
@@ -272,14 +274,14 @@ export default function TrainerDashboardScreen() {
 
           {/* Profile strength */}
           {nextTodo && (
-            <PressableScale onPress={() => router.push('/(trainer)/profile')} accessibilityLabel="Improve your profile">
+            <PressableScale onPress={() => router.push(nextTodo.id === 'video' ? '/profile-edit' : '/(trainer)/profile')} accessibilityLabel="Improve your profile">
               <Glass radius={T.radius.lg} style={styles.reach}>
                 <View style={styles.reachRing}>
                   <Rings size={44} stroke={6} rings={[{ progress: reach.score / 100, color: T.ring2 }]} />
                   <Text style={styles.reachPct}>{reach.score}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={type.headline}>Profile {reach.score}% complete</Text>
+                  <Text style={type.headline}>{nextTodo.id === 'video' ? 'Intro video missing' : `Profile ${reach.score}% complete`}</Text>
                   <Text style={type.caption}>Next: {nextTodo.label}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={T.text3} />

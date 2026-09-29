@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Alert } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../../stores/authStore';
 import { OnboardingShell } from '../../../components/ui/OnboardingShell';
 import { Field, Input, PhotoPick } from '../../../components/ui/Form';
 import { Chip } from '../../../components/ui/Bits';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../../constants/config';
+import { Alert } from '../../../components/ui/Feedback';
 
 export default function TrainerStep1() {
   const { trainerProfile, setTrainerProfile, user } = useAuthStore();
@@ -31,7 +32,7 @@ export default function TrainerStep1() {
   };
 
   return (
-    <OnboardingShell preset="trainer" step={1} total={4} title="Your coach profile" subtitle="This is what clients see first." cta="Next" onNext={next} canNext={valid}>
+    <OnboardingShell preset="trainer" step={1} total={5} title="Your coach profile" subtitle="This is what clients see first." cta="Next" onNext={next} canNext={valid}>
       <PhotoPick uri={photo} name={name} onPick={setPhoto} />
       <Field label="Full name"><Input value={name} onChangeText={setName} placeholder="e.g. Arjun Sharma" autoCapitalize="words" /></Field>
       <Field label="City">

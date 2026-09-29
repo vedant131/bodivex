@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +23,8 @@ import { PressableScale } from '../../components/ui/PressableScale';
 import { Avatar, IconButton } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
 import { Chat, Message } from '../../types/chat';
+import { Alert } from '../../components/ui/Feedback';
+import { Bone } from '../../components/ui/Skeleton';
 
 const dayLabel = (d: Date) => {
   const today = new Date();
@@ -144,7 +153,7 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ flex: 1 }} />
+          <View style={{ flex: 1, padding: 14, gap: 10 }}><Bone w="55%" h={40} r={20} /><Bone w="40%" h={40} r={20} style={{ alignSelf: 'flex-end' }} /><Bone w="65%" h={56} r={20} /></View>
         ) : (
           <FlatList
             ref={listRef}

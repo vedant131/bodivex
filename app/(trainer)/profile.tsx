@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform, Switch,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Modal,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +29,7 @@ import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { CONFIG, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA, TrainerReview } from '../../types/trainer';
+import { Alert } from '../../components/ui/Feedback';
 
 export default function TrainerProfileTab() {
   const { trainerProfile: p } = useAuthStore();

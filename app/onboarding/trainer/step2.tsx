@@ -46,7 +46,7 @@ export default function TrainerStep2() {
   };
 
   return (
-    <OnboardingShell preset="trainer" step={2} total={4} title="What you coach" subtitle="Clients search by these." cta="Next" onNext={next} canNext={valid}>
+    <OnboardingShell preset="trainer" step={2} total={5} title="What you coach" subtitle="Clients search by these." cta="Next" onNext={next} canNext={valid}>
       <Field label="Specializations">
         <View style={styles.wrap}>
           {SPECIALIZATIONS.map((s) => (

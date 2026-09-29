@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,10 +10,16 @@ import { Glass } from '../../../components/ui/Glass';
 import { Button } from '../../../components/ui/Button';
 import { T, type } from '../../../constants/theme';
 import { CONFIG } from '../../../constants/config';
+import { celebrate } from '../../../components/ui/Feedback';
 
 export default function TrainerPendingScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
   const approved = trainerProfile?.kycStatus === 'approved';
+  const wasApproved = useRef(approved);
+  useEffect(() => {
+    if (approved && !wasApproved.current) celebrate("You're live!", 'Clients can now find and book you.');
+    wasApproved.current = approved;
+  }, [approved]);
 
   // Flips to "You're live" as soon as the team approves the profile
   useEffect(() => {

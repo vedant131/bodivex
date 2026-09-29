@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
@@ -13,6 +13,7 @@ import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel, BudgetRangeLabel } from '../../types/user';
+import { Alert } from '../../components/ui/Feedback';
 
 function MenuRow({ icon, label, onPress, danger }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean;

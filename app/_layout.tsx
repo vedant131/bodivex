@@ -8,6 +8,7 @@ import { StyleSheet } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
 import '../global.css';
 import { T } from '../constants/theme';
+import { FeedbackHost } from '../components/ui/Feedback';
 
 // @ts-ignore
 if (typeof StyleSheet.setFlag === 'function') {
@@ -50,6 +51,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="booking/[trainerId]" options={{ headerShown: false }} />
         </Stack>
+        <FeedbackHost />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

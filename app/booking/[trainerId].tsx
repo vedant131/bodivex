@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView,
-  StyleSheet, Alert, ActivityIndicator,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +26,8 @@ import { InPersonPlace } from '../../types/gym';
 import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { SessionType } from '../../types/session';
+import { Alert, celebrate } from '../../components/ui/Feedback';
+import { Bone } from '../../components/ui/Skeleton';
 
 const PERIODS = ['Morning', 'Afternoon', 'Evening'] as const;
 
@@ -117,11 +122,8 @@ export default function BookingScreen() {
         user.name,
         trainer
       );
-      Alert.alert(
-        'Request sent',
-        `${trainer.name} will confirm your ${timeLabel(slot)} slot. Chat unlocks once they accept.`,
-        [{ text: 'OK', onPress: () => router.replace('/(client)/sessions') }]
-      );
+      celebrate('Request sent', `${trainer.name.split(' ')[0]} will confirm your ${timeLabel(slot)} slot.`);
+      router.replace('/(client)/sessions');
     } catch (e: any) {
       Alert.alert('Could not book', e.message);
       setSlot(null);
@@ -204,7 +206,7 @@ export default function BookingScreen() {
           </ScrollView>
 
           {loadingSlots ? (
-            <ActivityIndicator color={T.text} style={{ marginVertical: 32 }} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>{Array.from({ length: 9 }).map((_, i) => <Bone key={i} w="31%" h={48} r={14} />)}</View>
           ) : (
             PERIODS.map((period) => {
               const list = daySlots.filter((s) => slotPeriod(s) === period);

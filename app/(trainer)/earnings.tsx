@@ -12,6 +12,7 @@ import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { Session } from '../../types/session';
+import { Bone } from '../../components/ui/Skeleton';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 const WEEKS = 8;
@@ -77,7 +78,7 @@ export default function EarningsScreen() {
         <Text style={type.title}>Earnings</Text>
 
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+          <View style={{ gap: 12 }}><Bone h={120} r={28} /><Bone h={72} r={20} /><Bone h={200} r={28} /></View>
         ) : (
           <>
             {/* Hero number */}

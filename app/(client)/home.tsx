@@ -10,6 +10,7 @@ import { useTrainerStore } from '../../stores/trainerStore';
 import { subscribeToClientSessions } from '../../services/bookings';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
 import { trainsAtGym, getGymsInCity, getTrainerCountsByGym } from '../../services/gyms';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { Gym } from '../../types/gym';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
@@ -216,7 +217,9 @@ export default function HomeScreen() {
           {/* Top coaches carousel */}
           <View style={{ marginTop: 28 }}>
             <Section title={`Top coaches in ${city}`} action="See all" onAction={() => router.push('/(client)/search')} style={styles.px} />
-            {topTrainers.length === 0 && !isLoading ? (
+            {topTrainers.length === 0 && isLoading ? (
+              <Skeleton variant="portrait" count={3} />
+            ) : topTrainers.length === 0 ? (
               <View style={styles.px}>
                 <Glass radius={T.radius.lg} style={styles.empty}>
                   <Ionicons name="people-outline" size={22} color={T.text2} />

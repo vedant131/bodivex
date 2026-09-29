@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
@@ -14,6 +14,7 @@ import { IconButton } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
 import { Gym } from '../../types/gym';
 import { TrainerProfile } from '../../types/trainer';
+import { Alert } from '../../components/ui/Feedback';
 
 export default function GymScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

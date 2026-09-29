@@ -3,11 +3,13 @@ import { Tabs } from 'expo-router/js-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
 import { useSessionAlerts } from '../../hooks/useSessionAlerts';
+import { useBadges } from '../../stores/badgeStore';
 import { GlassTabBar } from '../../components/ui/GlassTabBar';
 import { T } from '../../constants/theme';
 
 export default function TrainerLayout() {
   const role = useAuthStore((s) => s.user?.role);
+  const badges = useBadges();
   useSessionAlerts('trainer');
   if (role && role !== 'trainer') return <Redirect href="/(client)/home" />;
 
@@ -19,6 +21,7 @@ export default function TrainerLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
+          tabBarBadge: badges.pendingRequests || undefined,
           title: 'Today',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'flash' : 'flash-outline'} size={size} color={color} />
@@ -46,6 +49,7 @@ export default function TrainerLayout() {
       <Tabs.Screen
         name="chats"
         options={{
+          tabBarBadge: badges.chatsUnread || undefined,
           title: 'Chats',
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />

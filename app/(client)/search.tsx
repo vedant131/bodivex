@@ -13,6 +13,7 @@ import { Glass } from '../../components/ui/Glass';
 import { Chip } from '../../components/ui/Bits';
 import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 const GOALS = [
   { label: 'Fat loss', spec: 'Weight Loss', icon: 'flame' as const },
@@ -113,7 +114,7 @@ export default function SearchScreen() {
             {isLoading ? 'Searching…' : `${results.length} coach${results.length === 1 ? '' : 'es'}`}
           </Text>
           {isLoading ? (
-            <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+            <Skeleton variant="row" count={4} />
           ) : results.length === 0 ? (
             <Glass radius={T.radius.xl} style={styles.empty}>
               <Ionicons name="search-outline" size={30} color={T.text2} />

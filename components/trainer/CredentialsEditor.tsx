@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Glass } from '../ui/Glass';
 import { Button } from '../ui/Button';
@@ -7,6 +7,7 @@ import { PressableScale } from '../ui/PressableScale';
 import { Field, Input } from '../ui/Form';
 import { T, type } from '../../constants/theme';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
+import { Alert } from '../ui/Feedback';
 
 export interface Entry {
   title: string;       // cert name / competition / achievement

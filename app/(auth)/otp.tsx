@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Keyboard,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,6 +21,7 @@ import { Button } from '../../components/ui/Button';
 import { IconButton } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
+import { Alert } from '../../components/ui/Feedback';
 
 const OTP_LENGTH = 6;
 

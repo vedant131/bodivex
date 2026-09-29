@@ -12,6 +12,7 @@ import { GymPicker } from '../components/gym/GymPicker';
 import { T, type } from '../constants/theme';
 import { CITIES } from '../constants/config';
 import { Gym } from '../types/gym';
+import { Skeleton } from '../components/ui/Skeleton';
 
 /** Gyms in your area, for clients and trainers: how many Bodivex coaches train at each. */
 export default function GymsScreen() {
@@ -58,7 +59,7 @@ export default function GymsScreen() {
         <GymPicker city={city} selected={[]} onChange={(g) => g[0] && router.push(`/gym/${g[0].id}` as any)} placeholder="Find or add a gym" />
 
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ marginTop: 30 }} />
+          <Skeleton variant="row" count={4} />
         ) : sorted.length === 0 ? (
           <Glass radius={T.radius.xl} style={styles.empty}>
             <Ionicons name="barbell-outline" size={28} color={T.text2} />

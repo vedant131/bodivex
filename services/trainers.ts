@@ -314,31 +314,38 @@ export const getTrainerProfileReachScore = (
 } => {
   const checklist = [
     {
+      id: 'video',
+      label: 'Add your intro video',
+      completed: !!profile?.videoIntroUrl,
+      points: 20,
+      tip: 'Required. A 30–60s clip plays at the top of your profile.',
+    },
+    {
       id: 'bio',
       label: 'Write a coaching bio',
       completed: (profile?.bio?.length ?? 0) >= 40,
-      points: 20,
+      points: 15,
       tip: 'Tell clients what makes your training method unique.',
     },
     {
       id: 'photos',
       label: 'Upload a before & after result',
       completed: (counts.transformations ?? 0) > 0,
-      points: 25,
+      points: 20,
       tip: 'Real results are the first thing clients look for.',
     },
     {
       id: 'certs',
       label: 'Add your certifications',
       completed: (profile?.certifications?.length ?? 0) > 0,
-      points: 20,
+      points: 15,
       tip: 'Certified coaches get more bookings.',
     },
     {
       id: 'rates',
       label: 'Set your online / in-person rates',
       completed: !!(profile?.pricingOnline || profile?.pricingOffline),
-      points: 15,
+      points: 10,
       tip: 'Clear prices make it easy to book.',
     },
     {

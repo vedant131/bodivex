@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, addDoc, updateDoc, getDocs,
-  collection, query, where, serverTimestamp, setLogLevel, writeBatch, deleteDoc,
+  collection, query, where, serverTimestamp, setLogLevel, writeBatch, deleteDoc, deleteField,
 } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { initializeApp as initAdmin } from 'firebase-admin/app';
@@ -87,6 +87,11 @@ const pending = await newUser('77');
 await denied(setDoc(doc(pending.db, 'trainers', pending.uid), {
   name: 'Sneaky', isKYCApproved: true, kycStatus: 'approved', rating: 0, totalReviews: 0, totalSessions: 0,
 }), 'new trainer self-approving');
+const pendingTrainer = { name: 'New Coach', isKYCApproved: false, kycStatus: 'pending', rating: 0, totalReviews: 0, totalSessions: 0 };
+await denied(setDoc(doc(pending.db, 'trainers', pending.uid), pendingTrainer), 'trainer signing up without an intro video');
+await setDoc(doc(pending.db, 'trainers', pending.uid), { ...pendingTrainer, videoIntroUrl: 'https://example.com/intro.mp4' });
+ok('trainer signs up with an intro video');
+await denied(updateDoc(doc(pending.db, 'trainers', pending.uid), { videoIntroUrl: deleteField() }), 'trainer removing their intro video');
 
 // ── Booking = session + slot lock in one batch (same shape as createBooking())
 let hour = 0;

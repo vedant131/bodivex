@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, Modal, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  TextInput,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Glass } from '../ui/Glass';
@@ -10,6 +19,7 @@ import { getGymsInCity, addGym, toRef } from '../../services/gyms';
 import { T, type } from '../../constants/theme';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Gym, GymRef } from '../../types/gym';
+import { Alert } from '../ui/Feedback';
 
 interface Props {
   city: string;

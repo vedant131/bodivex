@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Modal,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +22,8 @@ import { Avatar, IconButton } from '../../components/ui/Bits';
 import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { ClientSummary } from '../../types/session';
+import { Alert } from '../../components/ui/Feedback';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 const since = (d: Date) => d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
@@ -62,7 +72,7 @@ export default function TrainerClientsScreen() {
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+          <Skeleton variant="card" count={3} />
         ) : clients.length === 0 ? (
           <Glass radius={T.radius.xl} style={styles.empty}>
             <Ionicons name="people-outline" size={30} color={T.text2} />

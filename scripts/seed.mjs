@@ -102,6 +102,8 @@ for (const [i, t] of TRAINERS.entries()) {
     languages: ['English', 'Hindi', 'Marathi'],
     coachesLevels: i === 0 || i === 6 ? ['enthusiast', 'competitive', 'pro'] : ['enthusiast'],
     federations: i === 0 ? ['IFBB Pro', 'NPC'] : i === 6 ? ['IFBB'] : [],
+    // Note: public sample clip (not a real 30–60s intro) so the profile hero has something to play
+    ...(i === 0 && { videoIntroUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4' }),
     ...(t.gym !== 'Online' && {
       gyms: [gymRef[t.gym]],
       gymIds: [gymRef[t.gym].id],

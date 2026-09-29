@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Modal, TextInput, Pressable, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
@@ -13,6 +13,8 @@ import { Avatar, Chip, IconButton } from '../../components/ui/Bits';
 import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { Session } from '../../types/session';
+import { Alert } from '../../components/ui/Feedback';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 type Tab = 'upcoming' | 'past';
 
@@ -87,7 +89,7 @@ export default function ClientSessionsScreen() {
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+          <Skeleton variant="card" count={3} />
         ) : list.length === 0 ? (
           <Glass radius={T.radius.xl} style={styles.empty}>
             <Ionicons name="calendar-outline" size={30} color={T.text2} />

@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +15,8 @@ import { updateTrainerProfile, getTrainerSocial, saveTrainerSocial, placesOf } f
 import { GymPicker } from '../components/gym/GymPicker';
 import { GymRef, InPersonPlace, PLACE_LABEL, PLACE_ICON } from '../types/gym';
 import { updateUserProfile } from '../services/auth';
-import { uploadImage } from '../services/storage';
+import { uploadImage, uploadVideo } from '../services/storage';
+import { IntroVideoPicker } from '../components/trainer/IntroVideo';
 import { Screen } from '../components/ui/Screen';
 import { Glass } from '../components/ui/Glass';
 import { Button } from '../components/ui/Button';
@@ -22,6 +28,7 @@ import { T, type } from '../constants/theme';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../constants/config';
 import { SPECIALIZATIONS, TrainerProfile } from '../types/trainer';
 import { SessionPreference, AthleteLevel, AthleteLevelLabel, FEDERATIONS } from '../types/user';
+import { Alert } from '../components/ui/Feedback';
 
 /** Accepts "@name", "name" or a pasted profile URL; returns just the handle. */
 const cleanHandle = (v: string) =>
@@ -36,6 +43,7 @@ export default function EditTrainerProfile() {
   const p = trainerProfile;
 
   const [photo, setPhoto] = useState(p?.profilePhoto);
+  const [video, setVideo] = useState(p?.videoIntroUrl);
   const [name, setName] = useState(p?.name ?? '');
   const [bio, setBio] = useState(p?.bio ?? '');
   const [city, setCity] = useState(p?.city ?? 'Mumbai');
@@ -84,6 +92,7 @@ export default function EditTrainerProfile() {
 
   const save = async () => {
     const errors: string[] = [];
+    if (!video) errors.push('Add a 30–60 second intro video');
     if (name.trim().length < 2) errors.push('Enter your name');
     if (bio.trim().length < 20) errors.push('Write a bio of at least 20 characters');
     if (CONTACT_INFO_PATTERN.test(bio) || CONTACT_INFO_PATTERN.test(name)) errors.push(CONTACT_INFO_MESSAGE);
@@ -100,7 +109,9 @@ export default function EditTrainerProfile() {
     setSaving(true);
     try {
       const profilePhoto = photo ? await uploadImage(photo, `users/${user.id}/profile.jpg`) : undefined;
+      const videoIntroUrl = await uploadVideo(video!, `users/${user.id}/intro.mp4`);
       const changes: Partial<TrainerProfile> = {
+        videoIntroUrl,
         name: name.trim(),
         bio: bio.trim(),
         city,
@@ -151,6 +162,10 @@ export default function EditTrainerProfile() {
             <Avatar uri={photo} name={name || 'Coach'} size={104} radius={52} />
             <View style={styles.camera}><Ionicons name="camera" size={16} color="#fff" /></View>
           </PressableScale>
+
+          <Field label="Intro video" hint="Required. 30–60 seconds, plays muted at the top of your profile.">
+            <IntroVideoPicker uri={video} onChange={setVideo} />
+          </Field>
 
           <Field label="Name"><Input value={name} onChangeText={setName} placeholder="Your full name" /></Field>
 

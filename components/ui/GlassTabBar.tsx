@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withSpring } from 'react-native-reanimated';
 import { View, StyleSheet, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ComponentProps } from 'react';
@@ -26,11 +27,18 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
             const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
             if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
           };
+          const badge = options.tabBarBadge;
           return (
-            <PressableScale key={route.key} onPress={onPress} style={styles.item} accessibilityLabel={label} accessibilityState={{ selected: focused }} scaleTo={0.9}>
-              <View style={[styles.iconWrap, focused && styles.iconOn]}>
+            <PressableScale key={route.key} onPress={onPress} style={styles.item}
+              accessibilityLabel={badge ? `${label}, ${badge} new` : label} accessibilityState={{ selected: focused }} scaleTo={0.9}>
+              <TabIcon focused={focused}>
                 {options.tabBarIcon?.({ focused, color: focused ? T.text : T.text3, size: 22 })}
-              </View>
+              </TabIcon>
+              {!!badge && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{typeof badge === 'number' && badge > 9 ? '9+' : badge}</Text>
+                </View>
+              )}
               <Text style={[styles.label, focused && { color: T.text }]} numberOfLines={1}>{label}</Text>
             </PressableScale>
           );
@@ -38,6 +46,16 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
       </Glass>
     </View>
   );
+}
+
+/** Icon pill that springs up a little when its tab becomes active. */
+function TabIcon({ focused, children }: { focused: boolean; children: React.ReactNode }) {
+  const s = useSharedValue(1);
+  useEffect(() => {
+    if (focused) s.value = withSequence(withSpring(1.18, { damping: 8, stiffness: 400 }), withSpring(1, { damping: 12 }));
+  }, [focused]);
+  const anim = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return <Animated.View style={[styles.iconWrap, focused && styles.iconOn, anim]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
@@ -54,4 +72,9 @@ const styles = StyleSheet.create({
   iconWrap: { width: 44, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   iconOn: { backgroundColor: 'rgba(255,45,111,0.22)' },
   label: { fontSize: 10, fontWeight: '700', color: T.text3 },
+  badge: {
+    position: 'absolute', top: 2, left: '55%', minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5,
+    backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: T.bg,
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
 });

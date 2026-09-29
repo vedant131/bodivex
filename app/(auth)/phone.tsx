@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +18,7 @@ import { Button } from '../../components/ui/Button';
 import { IconButton } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
+import { Alert } from '../../components/ui/Feedback';
 
 const INDIA_DIAL_CODE = '+91';
 

@@ -11,6 +11,7 @@ import { Avatar } from '../ui/Bits';
 import { TAB_BAR_SPACE } from '../ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { Chat } from '../../types/chat';
+import { Skeleton } from '../ui/Skeleton';
 
 const when = (d?: Date) => {
   if (!d) return '';
@@ -74,7 +75,7 @@ export function ChatList({ role }: { role: 'client' | 'trainer' }) {
     <Screen preset={role === 'trainer' ? 'trainer' : 'calm'} edges={['top']}>
       <Text style={[type.title, styles.title]}>Chats</Text>
       {loading ? (
-        <ActivityIndicator color={T.text} style={{ marginTop: 40 }} />
+        <View style={{ paddingHorizontal: 20 }}><Skeleton variant="chat" count={4} /></View>
       ) : (
         <FlatList
           data={chats}

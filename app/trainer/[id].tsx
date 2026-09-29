@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, TextInput,
-  KeyboardAvoidingView, Platform, Pressable, useWindowDimensions,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,9 +27,11 @@ import { Button } from '../../components/ui/Button';
 import { PressableScale } from '../../components/ui/PressableScale';
 import { Avatar, IconButton, StatusPill } from '../../components/ui/Bits';
 import { T, type } from '../../constants/theme';
+import { IntroVideoPlayer } from '../../components/trainer/IntroVideo';
 import { CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
 import { Transformation, TrainerQA, TrainerReview } from '../../types/trainer';
 import { AthleteLevelLabel } from '../../types/user';
+import { Alert } from '../../components/ui/Feedback';
 
 type Tab = 'about' | 'results' | 'reviews' | 'qa';
 const TABS: { key: Tab; label: string }[] = [
@@ -103,14 +114,16 @@ export default function TrainerProfileScreen() {
     <View style={{ flex: 1 }}>
       <Backdrop preset="calm" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
-        {/* Hero photo */}
+        {/* Hero: intro video (muted loop) or photo */}
         <View style={{ height: heroH }}>
-          {trainer.profilePhoto ? (
+          {trainer.videoIntroUrl ? (
+            <IntroVideoPlayer uri={trainer.videoIntroUrl} height={heroH} radius={0} soundBottom={104} />
+          ) : trainer.profilePhoto ? (
             <Image source={{ uri: trainer.profilePhoto }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
           ) : (
             <Avatar name={trainer.name} size={width} radius={0} style={{ width, height: heroH }} />
           )}
-          <LinearGradient colors={['rgba(6,6,9,0.35)', 'transparent', 'rgba(6,6,9,0.2)', T.bg]} locations={[0, 0.25, 0.6, 1]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(6,6,9,0.35)', 'transparent', 'rgba(6,6,9,0.2)', T.bg]} locations={[0, 0.25, 0.6, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         </View>
 
         {/* Sheet */}

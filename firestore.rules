@@ -32,6 +32,8 @@ service cloud.firestore {
 
     // ── Trainer profiles: public once approved; approval and stats are admin/server-only
     match /trainers/{uid} {
+      // Intro video is compulsory; once set it can be replaced but not removed.
+      function hasIntroVideo(d) { return d.videoIntroUrl is string && d.videoIntroUrl.matches('https?://.*'); }
       allow read: if signedIn() && (resource.data.isKYCApproved == true || request.auth.uid == uid);
       allow create: if isUser(uid)
         && incoming().isKYCApproved == false
@@ -39,8 +41,10 @@ service cloud.firestore {
         && !('leadCount' in incoming()) && !('feesPaid' in incoming())
         && incoming().rating == 0
         && incoming().totalReviews == 0
-        && incoming().totalSessions == 0;
+        && incoming().totalSessions == 0
+        && hasIntroVideo(incoming());
       allow update: if isUser(uid)
+        && (!('videoIntroUrl' in resource.data) || hasIntroVideo(incoming()))
         && !changed().hasAny(['isKYCApproved', 'kycStatus', 'rating', 'totalReviews', 'totalSessions', 'userId', 'leadCount', 'feesPaid']);
 
       // Social handles: owner only. acceptBooking copies them onto the session for the client.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +19,7 @@ import {
   ClientProfile, FitnessGoal, FitnessGoalLabel, FitnessLevel, SessionPreference, BudgetRange, BudgetRangeLabel,
   AthleteLevel, AthleteLevelLabel, SPORTS, FEDERATIONS,
 } from '../types/user';
+import { Alert } from '../components/ui/Feedback';
 
 const LEVELS: FitnessLevel[] = ['beginner', 'intermediate', 'advanced'];
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
