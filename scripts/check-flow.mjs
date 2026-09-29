@@ -206,6 +206,15 @@ const stats = (await admin.doc(`trainers/${trainer.uid}`).get()).data();
 assert.equal(stats.rating, 4); assert.equal(stats.totalReviews, 1); assert.equal(stats.totalSessions, 1);
 ok('review updated rating (4.0) and session count');
 
+// ── Gym directory
+const gymDoc = await addDoc(collection(client.db, 'gyms'), { name: 'Check Gym Baner', area: 'Baner', city: 'Pune', createdBy: client.uid, createdAt: serverTimestamp() });
+ok('client added a gym to the directory');
+await denied(addDoc(collection(client.db, 'gyms'), { name: 'Fake Gym', area: 'x', city: 'Pune', createdBy: trainer.uid, createdAt: serverTimestamp() }),
+  'adding a gym as someone else');
+await denied(addDoc(collection(client.db, 'gyms'), { name: 'Call 98765 43210', area: 'x', city: 'Pune', createdBy: client.uid, createdAt: serverTimestamp() }),
+  'contact info in a gym name');
+await denied(updateDoc(doc(client.db, 'gyms', gymDoc.id), { name: 'Renamed' }), 'editing a gym entry');
+
 // ── Public Q&A: no contact details
 const ask = (question) => addDoc(collection(client.db, 'qa'), {
   trainerId: trainer.uid, clientId: client.uid, clientName: 'Test Client', askerRole: 'client',

@@ -164,6 +164,17 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.trainerId == request.auth.uid;
     }
 
+    // ── Gyms: shared directory. Anyone signed in can add one; nobody edits/deletes (admin only).
+    match /gyms/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().keys().hasOnly(['name', 'area', 'city', 'createdBy', 'createdAt'])
+        && incoming().createdBy == request.auth.uid
+        && incoming().name is string && incoming().name.size() >= 2 && incoming().name.size() <= 60
+        && incoming().area is string && incoming().area.size() <= 40
+        && noContactInfo(incoming().name) && noContactInfo(incoming().area);
+    }
+
     // ── Scheduled check-ins: trainer creates for their client
     match /scheduledCheckIns/{id} {
       allow read: if signedIn()

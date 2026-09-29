@@ -44,6 +44,24 @@ const TRAINERS = [
     'Athletic conditioning and bodyweight skills for students and athletes.'),
 ];
 
+// Gym directory (deterministic ids so re-seeding doesn't duplicate). Area = locality.
+const GYMS = [
+  ["Gold's Gym Bandra", 'Bandra West', 'Mumbai'], ['Cult Andheri West', 'Andheri West', 'Mumbai'],
+  ['Anytime Fitness Baner', 'Baner', 'Pune'], ['Cult Kothrud', 'Kothrud', 'Pune'],
+  ['Talwalkars Thane West', 'Thane West', 'Thane'], ['Snap Fitness Vashi', 'Vashi', 'Navi Mumbai'],
+  ['Fitness First Dharampeth', 'Dharampeth', 'Nagpur'], ['Gym One CIDCO', 'CIDCO', 'Chh. Sambhajinagar'],
+  ['Powerhouse Gym Nashik Road', 'Nashik Road', 'Nashik'],
+];
+const gymId = (name) => 'seed-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const gymRef = {};
+for (const [name, area, city] of GYMS) {
+  await db.doc(`gyms/${gymId(name)}`).set({ name, area, city, createdBy: 'seed', createdAt: FieldValue.serverTimestamp() });
+  gymRef[name] = { id: gymId(name), name, area };
+}
+
+// Where in-person trainers can train (some also go to homes / societies or outdoors)
+const PLACES = { 0: ['gym', 'home'], 2: ['gym'], 4: ['gym', 'home', 'outdoor'], 5: ['gym'], 6: ['gym'], 8: ['gym', 'outdoor'], 1: ['gym', 'home'] };
+
 for (const [i, t] of TRAINERS.entries()) {
   const phone = `+91900000${String(i + 1).padStart(4, '0')}`;
   const email = emailFor(phone);
@@ -84,7 +102,11 @@ for (const [i, t] of TRAINERS.entries()) {
     languages: ['English', 'Hindi', 'Marathi'],
     coachesLevels: i === 0 || i === 6 ? ['enthusiast', 'competitive', 'pro'] : ['enthusiast'],
     federations: i === 0 ? ['IFBB Pro', 'NPC'] : i === 6 ? ['IFBB'] : [],
-    ...(t.gym !== 'Online' && { gymLocation: { name: t.gym, address: `${t.gym}, ${t.city}`, latitude: 0, longitude: 0, city: t.city, state: 'Maharashtra' } }),
+    ...(t.gym !== 'Online' && {
+      gyms: [gymRef[t.gym]],
+      gymIds: [gymRef[t.gym].id],
+      inPersonPlaces: PLACES[i] ?? ['gym'],
+    }),
     rating: t.rating,
     totalReviews: t.reviews,
     totalSessions: t.sessions,

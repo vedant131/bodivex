@@ -6,7 +6,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../stores/authStore';
-import { updateTrainerProfile, getTrainerSocial, saveTrainerSocial } from '../services/trainers';
+import { updateTrainerProfile, getTrainerSocial, saveTrainerSocial, placesOf } from '../services/trainers';
+import { GymPicker } from '../components/gym/GymPicker';
+import { GymRef, InPersonPlace, PLACE_LABEL, PLACE_ICON } from '../types/gym';
 import { updateUserProfile } from '../services/auth';
 import { uploadImage } from '../services/storage';
 import { Screen } from '../components/ui/Screen';
@@ -44,8 +46,10 @@ export default function EditTrainerProfile() {
   const [feds, setFeds] = useState<string[]>(p?.federations ?? []);
   const [online, setOnline] = useState(p?.pricingOnline ? String(p.pricingOnline) : '');
   const [offline, setOffline] = useState(p?.pricingOffline ? String(p.pricingOffline) : '');
-  const [gymName, setGymName] = useState(p?.gymLocation?.name ?? '');
-  const [gymAddress, setGymAddress] = useState(p?.gymLocation?.address ?? '');
+  const [places, setPlaces] = useState<InPersonPlace[]>(p && placesOf(p).length ? placesOf(p) : ['gym']);
+  const [gyms, setGyms] = useState<GymRef[]>(
+    p?.gyms ?? []
+  );
   const [languages, setLanguages] = useState<string[]>(p?.languages ?? ['English', 'Hindi']);
   const [certs, setCerts] = useState<Entry[]>(
     (p?.certifications ?? []).map((c) => ({ title: c.name, subtitle: c.issuedBy, year: c.year }))
@@ -86,7 +90,8 @@ export default function EditTrainerProfile() {
     if (!specs.length) errors.push('Pick at least one specialization');
     if (offersOnline && !(Number(online) > 0)) errors.push('Set your online price');
     if (offersOffline && !(Number(offline) > 0)) errors.push('Set your in-person price');
-    if (offersOffline && !gymName.trim()) errors.push('Add the gym where you train clients');
+    if (offersOffline && !places.length) errors.push('Pick where you train clients in person');
+    if (offersOffline && places.includes('gym') && !gyms.length) errors.push('Choose at least one gym where you train');
     const ig = cleanHandle(instagram);
     const yt = cleanHandle(youtube);
     if ((ig && !HANDLE.test(ig)) || (yt && !HANDLE.test(yt))) errors.push('Social handles can only use letters, numbers, dots and underscores');
@@ -114,9 +119,10 @@ export default function EditTrainerProfile() {
           ...competitions.map((m) => ({ title: m.title, description: m.subtitle, year: m.year, kind: 'competition' as const })),
           ...achievements.map((m) => ({ title: m.title, description: m.subtitle, year: m.year, kind: 'achievement' as const })),
         ].map((m) => (m.description ? m : { title: m.title, year: m.year, kind: m.kind })),
-        gymLocation: offersOffline
-          ? { name: gymName.trim(), address: gymAddress.trim(), latitude: 0, longitude: 0, city, state: 'Maharashtra' }
-          : undefined,
+        inPersonPlaces: offersOffline ? places : [],
+        gyms: offersOffline && places.includes('gym') ? gyms : [],
+        gymIds: offersOffline && places.includes('gym') ? gyms.map((g) => g.id) : [],
+        gymLocation: undefined, // legacy single-gym field, replaced by `gyms`
       };
       await updateTrainerProfile(p.id, changes);
       await saveTrainerSocial(p.id, { instagram: ig || undefined, youtube: yt || undefined });
@@ -215,9 +221,18 @@ export default function EditTrainerProfile() {
           <Text style={[type.caption, { marginTop: -10 }]}>Existing bookings keep the price they were booked at.</Text>
 
           {offersOffline && (
-            <Field label="Gym">
-              <Input value={gymName} onChangeText={setGymName} placeholder="Gym name, e.g. Anytime Fitness Baner" />
-              <Input value={gymAddress} onChangeText={setGymAddress} placeholder="Area / address" />
+            <Field label="Where you train clients in person" hint="Home / society gyms and outdoors have no gym entry fee for the client.">
+              <View style={styles.wrap}>
+                {(Object.keys(PLACE_LABEL) as InPersonPlace[]).map((pl) => (
+                  <Chip key={pl} label={PLACE_LABEL[pl]} icon={PLACE_ICON[pl]} active={places.includes(pl)}
+                    onPress={() => setPlaces(places.includes(pl) ? places.filter((x) => x !== pl) : [...places, pl])} />
+                ))}
+              </View>
+            </Field>
+          )}
+          {offersOffline && places.includes('gym') && (
+            <Field label="Gyms where you're allowed to train" hint={p.gymLocation && !gyms.length ? `You previously entered "${p.gymLocation.name}". Pick it from the list or add it.` : undefined}>
+              <GymPicker city={city} multiple selected={gyms} onChange={setGyms} placeholder="Choose your gyms" />
             </Field>
           )}
 

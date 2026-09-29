@@ -17,7 +17,9 @@ import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { Button } from '../../components/ui/Button';
 import { PressableScale } from '../../components/ui/PressableScale';
-import { Avatar, IconButton } from '../../components/ui/Bits';
+import { Avatar, IconButton, Chip } from '../../components/ui/Bits';
+import { placesOf } from '../../services/trainers';
+import { InPersonPlace } from '../../types/gym';
 import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { SessionType } from '../../types/session';
@@ -41,6 +43,8 @@ export default function BookingScreen() {
   }, [trainerId]);
 
   const [sessionType, setSessionType] = useState<SessionType>('online');
+  const [placeKey, setPlaceKey] = useState<string | null>(null);
+  const myGymId = useAuthStore((s) => s.clientProfile?.gym?.id);
   useEffect(() => {
     if (trainer && !trainer.pricingOnline) setSessionType('offline');
   }, [trainer?.id]);
@@ -78,6 +82,17 @@ export default function BookingScreen() {
   }
 
   const offersBoth = !!trainer.pricingOnline && !!trainer.pricingOffline;
+  // In-person place options: each of the trainer's gyms, then home/society and outdoors
+  type PlaceOpt = { key: string; place: InPersonPlace; label: string; icon: 'barbell' | 'home' | 'leaf'; mine?: boolean };
+  const placeOptions = ([
+    ...(placesOf(trainer).includes('gym')
+      ? (trainer.gyms?.length ? trainer.gyms : trainer.gymLocation ? [{ id: 'legacy', name: trainer.gymLocation.name, area: '' }] : [])
+          .map((g) => ({ key: g.id, place: 'gym' as const, label: g.name, icon: 'barbell' as const, mine: g.id === myGymId }))
+      : []),
+    ...(placesOf(trainer).includes('home') ? [{ key: 'home', place: 'home' as const, label: 'My home / society gym', icon: 'home' as const }] : []),
+    ...(placesOf(trainer).includes('outdoor') ? [{ key: 'outdoor', place: 'outdoor' as const, label: 'Outdoors', icon: 'leaf' as const }] : []),
+  ] as PlaceOpt[]).sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
+  const chosenPlace = placeOptions.find((o) => o.key === placeKey) ?? placeOptions[0];
   const price = (sessionType === 'online' ? trainer.pricingOnline : trainer.pricingOffline) ?? 0;
   const daySlots = slotsForDay(day);
   const available = (s: Date) => isBookable(s) && !booked.has(slotKey(s));
@@ -93,6 +108,10 @@ export default function BookingScreen() {
           scheduledAt: slot,
           durationMins: CONFIG.slots.sessionMins,
           price,
+          ...(sessionType === 'offline' && chosenPlace && {
+            place: chosenPlace.place,
+            placeLabel: chosenPlace.place === 'home' ? "Client's home / society gym" : chosenPlace.label,
+          }),
         },
         user.id,
         user.name,
@@ -138,6 +157,21 @@ export default function BookingScreen() {
                 );
               })}
             </Glass>
+          )}
+
+          {sessionType === 'offline' && placeOptions.length > 0 && (
+            <View style={{ marginBottom: 18, gap: 8 }}>
+              <Text style={type.micro}>Where</Text>
+              <View style={styles.placeWrap}>
+                {placeOptions.map((o) => (
+                  <Chip key={o.key} label={o.mine ? `${o.label} · your gym` : o.label} icon={o.icon}
+                    active={chosenPlace?.key === o.key} onPress={() => setPlaceKey(o.key)} />
+                ))}
+              </View>
+              {chosenPlace?.place === 'gym' && !chosenPlace.mine && (
+                <Text style={type.caption}>Not your gym: it may charge an entry fee for outside members. Check with the coach in chat.</Text>
+              )}
+            </View>
           )}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
@@ -240,6 +274,7 @@ const styles = StyleSheet.create({
   segBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, height: 38, borderRadius: T.radius.pill },
   segOn: { backgroundColor: T.glassStrong },
   segText: { fontSize: 14, fontWeight: '700', color: T.text3 },
+  placeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   dayRow: { gap: 10, paddingBottom: 22 },
   day: { width: 62, height: 76, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: T.radius.lg },
   dayOn: { backgroundColor: T.text },

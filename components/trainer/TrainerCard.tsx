@@ -9,6 +9,8 @@ import { Glass } from '../ui/Glass';
 import { Avatar } from '../ui/Bits';
 import { T, type } from '../../constants/theme';
 import { TrainerProfile } from '../../types/trainer';
+import { useAuthStore } from '../../stores/authStore';
+import { trainsAtGym } from '../../services/gyms';
 
 interface Props {
   trainer: TrainerProfile;
@@ -24,6 +26,8 @@ const open = (t: TrainerProfile) => router.push(`/trainer/${t.id}`);
 export function TrainerCard({ trainer, variant }: Props) {
   const price = fromPrice(trainer);
   const rating = trainer.totalReviews > 0 ? trainer.rating.toFixed(1) : 'New';
+  const myGymId = useAuthStore((s) => s.clientProfile?.gym?.id);
+  const atMyGym = trainsAtGym(trainer, myGymId);
 
   if (variant === 'compact') {
     return (
@@ -38,6 +42,12 @@ export function TrainerCard({ trainer, variant }: Props) {
           <View style={styles.openBadge}>
             <View style={styles.openDot} />
             <Text style={styles.openText}>Open</Text>
+          </View>
+        )}
+        {atMyGym && (
+          <View style={[styles.openBadge, styles.gymBadge]}>
+            <Ionicons name="barbell" size={10} color="#fff" />
+            <Text style={styles.openText}>Your gym</Text>
           </View>
         )}
         <Glass variant="clear" radius={16} style={styles.tag}>
@@ -61,6 +71,12 @@ export function TrainerCard({ trainer, variant }: Props) {
         </View>
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={type.headline} numberOfLines={1}>{trainer.name}</Text>
+          {atMyGym && (
+            <View style={styles.gymPill}>
+              <Ionicons name="barbell" size={11} color={T.ring2} />
+              <Text style={styles.gymPillText}>Trains at your gym</Text>
+            </View>
+          )}
           <Text style={type.caption} numberOfLines={1}>
             {trainer.specializations.slice(0, 2).join(' · ') || 'Personal trainer'}
           </Text>
@@ -95,6 +111,9 @@ const styles = StyleSheet.create({
   },
   openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.ring2 },
   openText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  gymBadge: { top: 36, backgroundColor: 'rgba(155,255,58,0.28)', gap: 4 },
+  gymPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(155,255,58,0.14)', borderRadius: 99, paddingHorizontal: 8, height: 20 },
+  gymPillText: { color: T.ring2, fontSize: 11, fontWeight: '800' },
   tag: { position: 'absolute', left: 8, right: 8, bottom: 8, paddingHorizontal: 10, paddingVertical: 8 },
   tagName: { color: T.text, fontSize: 14, fontWeight: '800' },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },

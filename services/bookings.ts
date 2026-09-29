@@ -53,6 +53,7 @@ export const createBooking = async (
     durationMins: request.durationMins,
     slotKey: key,
     price: request.price,
+    ...(request.place && { place: request.place, placeLabel: request.placeLabel }),
     chatId,
   };
 

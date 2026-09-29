@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
+import { trainsAtGym } from '../../services/gyms';
+import { InPersonPlace } from '../../types/gym';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { Chip } from '../../components/ui/Bits';
@@ -28,6 +30,8 @@ export default function SearchScreen() {
   const { trainers, isLoading, fetchTrainers } = useTrainerStore();
   const city = useAuthStore((s) => s.clientProfile?.city ?? 'Mumbai');
   const myLevel = useAuthStore((s) => s.clientProfile?.athleteLevel);
+  const myGym = useAuthStore((s) => s.clientProfile?.gym);
+  const [where, setWhere] = useState<'any' | 'mygym' | InPersonPlace>('any');
   const [athletes, setAthletes] = useState(!!myLevel && myLevel !== 'enthusiast');
 
   const [q, setQ] = useState('');
@@ -43,15 +47,18 @@ export default function SearchScreen() {
       specializations: spec ? [spec] : undefined,
       sessionPreference: mode === 'all' ? undefined : mode,
       athleteLevel: athletes ? (myLevel === 'pro' ? 'pro' : 'competitive') : undefined,
+      gymId: where === 'mygym' ? myGym?.id : undefined,
+      inPersonPlace: where === 'home' || where === 'outdoor' ? where : undefined,
     });
-  }, [spec, mode, city, athletes]);
+  }, [spec, mode, city, athletes, where]);
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return trainers;
-    return trainers.filter((t) =>
-      [t.name, t.bio, t.gymLocation?.name, ...t.specializations].some((f) => f?.toLowerCase().includes(needle))
+    const hits = !needle ? trainers : trainers.filter((t) =>
+      [t.name, t.bio, t.gymLocation?.name, ...(t.gyms ?? []).map((g) => `${g.name} ${g.area}`), ...t.specializations]
+        .some((f) => f?.toLowerCase().includes(needle))
     );
+    return [...hits].sort((a, b) => Number(trainsAtGym(b, myGym?.id)) - Number(trainsAtGym(a, myGym?.id)));
   }, [trainers, q]);
 
   return (
@@ -88,6 +95,11 @@ export default function SearchScreen() {
                 onPress={() => setMode(m)}
               />
             ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {myGym && <Chip label="At my gym" icon="barbell" active={where === 'mygym'} onPress={() => setWhere(where === 'mygym' ? 'any' : 'mygym')} />}
+            <Chip label="Home / society" icon="home" active={where === 'home'} onPress={() => setWhere(where === 'home' ? 'any' : 'home')} />
+            <Chip label="Outdoors" icon="leaf" active={where === 'outdoor'} onPress={() => setWhere(where === 'outdoor' ? 'any' : 'outdoor')} />
           </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {GOALS.map((g) => (

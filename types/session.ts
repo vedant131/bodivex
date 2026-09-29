@@ -20,6 +20,8 @@ export interface Session {
   scheduledAt: Date;
   endedAt?: Date;
   durationMins: number;
+  place?: 'gym' | 'home' | 'outdoor'; // in-person only
+  placeLabel?: string;                 // e.g. gym name, "Client's home / society gym"
   slotKey: string;             // YYYY-MM-DD-HH, doc id of the trainer's slot lock
   price: number;               // Trainer's quoted price, paid directly to trainer
   chatId?: string;
@@ -40,6 +42,8 @@ export interface BookingRequest {
   scheduledAt: Date;
   durationMins: number;
   price: number;
+  place?: 'gym' | 'home' | 'outdoor';
+  placeLabel?: string;
 }
 
 export interface ClientSummary {

@@ -208,7 +208,7 @@ export default function TrainerDashboardScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={type.headline}>{req.clientName}</Text>
                           <Text style={type.caption}>
-                            {when(req.scheduledAt)} · {req.type === 'online' ? 'Online' : 'In person'}
+                            {when(req.scheduledAt)} · {req.type === 'online' ? 'Online' : req.placeLabel ?? 'In person'}
                           </Text>
                         </View>
                         <Text style={styles.reqPrice}>₹{req.price}</Text>
@@ -237,7 +237,7 @@ export default function TrainerDashboardScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={type.headline}>{s.clientName}</Text>
-                      <Text style={type.caption}>{s.type === 'online' ? 'Online video' : 'At the gym'} · {s.durationMins} min</Text>
+                      <Text style={type.caption}>{s.type === 'online' ? 'Online video' : s.placeLabel ?? 'In person'} · {s.durationMins} min</Text>
                     </View>
                     {s.chatId && (
                       <IconButton icon="chatbubble-ellipses" label={`Chat with ${s.clientName}`} size={38}
@@ -251,6 +251,24 @@ export default function TrainerDashboardScreen() {
               </View>
             </View>
           )}
+
+          {/* Gyms in your area */}
+          <PressableScale onPress={() => router.push('/gyms')} accessibilityLabel="Gyms in your area">
+            <Glass radius={T.radius.lg} style={styles.reach}>
+              <View style={[styles.reachRing, { borderRadius: 14, backgroundColor: 'rgba(155,255,58,0.16)' }]}>
+                <Ionicons name="barbell" size={20} color={T.ring2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={type.headline}>Gyms in your area</Text>
+                <Text style={type.caption}>
+                  {trainerProfile?.gyms?.length
+                    ? `You train at ${trainerProfile.gyms.length} gym${trainerProfile.gyms.length > 1 ? 's' : ''} · clients there see you first`
+                    : 'Add the gyms you train at so clients there find you'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={T.text3} />
+            </Glass>
+          </PressableScale>
 
           {/* Profile strength */}
           {nextTodo && (

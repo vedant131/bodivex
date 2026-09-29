@@ -1,3 +1,5 @@
+import type { GymRef } from './gym';
+
 export type UserRole = 'client' | 'trainer' | 'admin';
 
 export type KYCStatus =
@@ -93,7 +95,8 @@ export interface ClientProfile {
   profilePhoto?: string;
   fitnessLevel: FitnessLevel;
   currentlyGoesToGym: boolean;
-  gymName?: string;
+  gymName?: string;          // legacy free text; new profiles use `gym`
+  gym?: GymRef;
   city: string;
   goals: FitnessGoal[];
   sessionPreference: SessionPreference;

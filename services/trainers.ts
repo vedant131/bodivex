@@ -15,6 +15,7 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
+import { InPersonPlace } from '../types/gym';
 import { uploadImage } from './storage';
 import { TrainerProfile, TrainerFilter, Transformation, TrainerQA, TrainerReview, TrainerSocial } from '../types/trainer';
 
@@ -31,6 +32,10 @@ const toTrainerProfile = (id: string, data: any): TrainerProfile => ({
 
 const withoutUndefined = <T extends object>(obj: T) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
+/** In-person places a trainer offers (legacy profiles with a gym = ['gym']). */
+export const placesOf = (t: Partial<Pick<TrainerProfile, 'inPersonPlaces' | 'sessionPreference' | 'gymLocation' | 'gyms'>>): InPersonPlace[] =>
+  t.sessionPreference === 'online' ? [] : t.inPersonPlaces ?? (t.gyms?.length || t.gymLocation ? ['gym'] : []);
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +71,12 @@ export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfil
   if (filter?.gymName) {
     const g = filter.gymName.toLowerCase();
     trainers = trainers.filter((t) => t.gymLocation?.name.toLowerCase().includes(g));
+  }
+  if (filter?.gymId) {
+    trainers = trainers.filter((t) => t.gymIds?.includes(filter.gymId!));
+  }
+  if (filter?.inPersonPlace) {
+    trainers = trainers.filter((t) => placesOf(t).includes(filter.inPersonPlace!));
   }
   if (filter?.athleteLevel) {
     trainers = trainers.filter((t) => (t.coachesLevels ?? ['enthusiast']).includes(filter.athleteLevel!));

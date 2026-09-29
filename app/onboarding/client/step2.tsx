@@ -8,6 +8,8 @@ import { Glass } from '../../../components/ui/Glass';
 import { T, type } from '../../../constants/theme';
 import { FitnessLevel, SPORTS, FEDERATIONS } from '../../../types/user';
 import { Chip } from '../../../components/ui/Bits';
+import { GymPicker } from '../../../components/gym/GymPicker';
+import { GymRef } from '../../../types/gym';
 
 const LEVELS: { value: FitnessLevel; label: string; desc: string; icon: 'leaf' | 'barbell' | 'trophy' }[] = [
   { value: 'beginner', label: 'Beginner', desc: 'Just starting out', icon: 'leaf' },
@@ -21,7 +23,7 @@ export default function ClientStep2() {
   const [weight, setWeight] = useState(clientProfile?.weight?.toString() ?? '');
   const [level, setLevel] = useState<FitnessLevel>(clientProfile?.fitnessLevel ?? 'beginner');
   const [goesToGym, setGoesToGym] = useState(clientProfile?.currentlyGoesToGym ?? false);
-  const [gymName, setGymName] = useState(clientProfile?.gymName ?? '');
+  const [gym, setGym] = useState<GymRef[]>(clientProfile?.gym ? [clientProfile.gym] : []);
   const athlete = (clientProfile?.athleteLevel ?? 'enthusiast') !== 'enthusiast';
   const [sport, setSport] = useState(clientProfile?.sport ?? '');
   const [federation, setFederation] = useState(clientProfile?.federation ?? '');
@@ -39,7 +41,8 @@ export default function ClientStep2() {
       weight: w,
       fitnessLevel: level,
       currentlyGoesToGym: goesToGym,
-      gymName: goesToGym && gymName.trim() ? gymName.trim() : undefined,
+      gym: goesToGym && gym[0] ? gym[0] : undefined,
+      gymName: goesToGym && gym[0] ? gym[0].name : undefined,
       sport: athlete ? sport : undefined,
       federation: athlete && federation ? federation : undefined,
       nextCompetition: athlete && nextComp.trim() ? nextComp.trim() : undefined,
@@ -96,7 +99,9 @@ export default function ClientStep2() {
         <Switch value={goesToGym} onValueChange={setGoesToGym} trackColor={{ true: T.ring2, false: T.glassStrong }} thumbColor="#fff" />
       </Glass>
       {goesToGym && (
-        <Field label="Gym name"><Input value={gymName} onChangeText={setGymName} placeholder="e.g. Cult Baner" /></Field>
+        <Field label="Your gym" hint="Coaches who train at your gym show first — no outside-trainer fee.">
+          <GymPicker city={clientProfile?.city ?? 'Mumbai'} selected={gym} onChange={setGym} />
+        </Field>
       )}
     </OnboardingShell>
   );

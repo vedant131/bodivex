@@ -11,6 +11,8 @@ import { Button } from '../components/ui/Button';
 import { PressableScale } from '../components/ui/PressableScale';
 import { Avatar, Chip, IconButton } from '../components/ui/Bits';
 import { Field, Input } from '../components/ui/Form';
+import { GymPicker } from '../components/gym/GymPicker';
+import { GymRef } from '../types/gym';
 import { T, type } from '../constants/theme';
 import { CITIES } from '../constants/config';
 import {
@@ -32,7 +34,7 @@ export default function EditClientProfile() {
   const [height, setHeight] = useState(p?.height ? String(p.height) : '');
   const [weight, setWeight] = useState(p?.weight ? String(p.weight) : '');
   const [level, setLevel] = useState<FitnessLevel>(p?.fitnessLevel ?? 'beginner');
-  const [gym, setGym] = useState(p?.gymName ?? '');
+  const [gym, setGym] = useState<GymRef[]>(p?.gym ? [p.gym] : []);
   const [goals, setGoals] = useState<FitnessGoal[]>(p?.goals ?? []);
   const [pref, setPref] = useState<SessionPreference>(p?.sessionPreference ?? 'both');
   const [budget, setBudget] = useState<BudgetRange>(p?.budgetRange ?? '300_700');
@@ -70,8 +72,9 @@ export default function EditClientProfile() {
         heightUnit: 'cm',
         weight: Number(weight),
         fitnessLevel: level,
-        currentlyGoesToGym: !!gym.trim(),
-        gymName: gym.trim() || undefined,
+        currentlyGoesToGym: gym.length > 0,
+        gym: gym[0],
+        gymName: gym[0]?.name,
         goals,
         sessionPreference: pref,
         budgetRange: budget,
@@ -186,8 +189,8 @@ export default function EditClientProfile() {
             </View>
           </Field>
 
-          <Field label="Your gym (optional)" hint="Helps us show coaches who train at your gym.">
-            <Input value={gym} onChangeText={setGym} placeholder="e.g. Cult Baner" />
+          <Field label="Your gym (optional)" hint="Coaches who train at your gym show first — no outside-trainer fee.">
+            <GymPicker city={city} selected={gym} onChange={setGym} />
           </Field>
         </ScrollView>
 

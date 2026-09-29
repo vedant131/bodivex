@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
-import { getTransformations, getTrainerQA, getTrainerReviews, askTrainerQuestion } from '../../services/trainers';
+import { getTransformations, getTrainerQA, getTrainerReviews, askTrainerQuestion, placesOf } from '../../services/trainers';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { Button } from '../../components/ui/Button';
@@ -42,7 +42,8 @@ export default function TrainerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
+  const { user, clientProfile } = useAuthStore();
+  const myGymId = clientProfile?.gym?.id;
   const { fetchTrainerById, selectedTrainer } = useTrainerStore();
   const trainer = selectedTrainer?.id === id ? selectedTrainer : null;
 
@@ -160,7 +161,35 @@ export default function TrainerProfileScreen() {
                   <Option icon="videocam" tint={T.ring1} title="Online" sub="Live video · form check" price={trainer.pricingOnline} />
                 ) : null}
                 {trainer.pricingOffline ? (
-                  <Option icon="barbell" tint={T.ring2} title="In person" sub={trainer.gymLocation?.name ?? 'At the gym'} price={trainer.pricingOffline} />
+                  <Option icon="barbell" tint={T.ring2} title="In person"
+                    sub={placesOf(trainer).map((pl) => (pl === 'gym' ? 'at a gym' : pl === 'home' ? 'your home / society gym' : 'outdoors')).join(' · ') || 'In person'}
+                    price={trainer.pricingOffline} />
+                ) : null}
+                {trainer.pricingOffline && (trainer.gyms?.length || trainer.gymLocation) ? (
+                  <>
+                    <Text style={type.micro}>Trains at</Text>
+                    {(trainer.gyms ?? []).map((g) => {
+                      const mine = g.id === myGymId;
+                      return (
+                        <PressableScale key={g.id} onPress={() => router.push(`/gym/${g.id}` as any)} accessibilityLabel={`${g.name}${mine ? ', your gym' : ''}`}>
+                          <Glass radius={T.radius.md} style={[styles.certRow, mine && { borderColor: T.ring2, borderWidth: 1.5 }]}>
+                            <Ionicons name="barbell" size={18} color={mine ? T.ring2 : T.text2} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={type.body}>{g.name}</Text>
+                              <Text style={type.caption}>{g.area}{mine ? ' · your gym, no outside-trainer fee' : ''}</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={T.text3} />
+                          </Glass>
+                        </PressableScale>
+                      );
+                    })}
+                    {!trainer.gyms?.length && trainer.gymLocation && (
+                      <Glass radius={T.radius.md} style={styles.certRow}>
+                        <Ionicons name="barbell" size={18} color={T.text2} />
+                        <Text style={[type.body, { flex: 1 }]}>{trainer.gymLocation.name}</Text>
+                      </Glass>
+                    )}
+                  </>
                 ) : null}
                 {trainer.certifications?.length > 0 && (
                   <>

@@ -111,7 +111,7 @@ export default function ClientSessionsScreen() {
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={type.headline}>{s.trainerName}</Text>
                     <Text style={type.caption}>
-                      {s.scheduledAt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {s.type === 'online' ? 'Online' : 'In person'} · ₹{s.price}
+                      {s.scheduledAt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {s.type === 'online' ? 'Online' : s.placeLabel ?? 'In person'} · ₹{s.price}
                     </Text>
                     <View style={styles.status}>
                       <View style={[styles.dot, { backgroundColor: st.color }]} />

@@ -9,6 +9,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { subscribeToClientSessions } from '../../services/bookings';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
+import { trainsAtGym, getGymsInCity, getTrainerCountsByGym } from '../../services/gyms';
+import { Gym } from '../../types/gym';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { PressableScale } from '../../components/ui/PressableScale';
@@ -65,6 +67,19 @@ export default function HomeScreen() {
     return subscribeToClientSessions(user.id, setSessions);
   }, [user?.id]);
 
+  const [gyms, setGyms] = useState<{ g: Gym; n: number }[]>([]);
+  useEffect(() => {
+    Promise.all([getGymsInCity(city), getTrainerCountsByGym(city)])
+      .then(([list, counts]) =>
+        setGyms(
+          list
+            .map((g) => ({ g, n: counts[g.id] ?? 0 }))
+            .sort((a, b) => Number(b.g.id === clientProfile?.gym?.id) - Number(a.g.id === clientProfile?.gym?.id) || b.n - a.n)
+            .slice(0, 8)
+        ))
+      .catch(() => {});
+  }, [city, clientProfile?.gym?.id]);
+
   const load = useCallback(() => {
     fetchTrainers({
       city,
@@ -93,7 +108,11 @@ export default function HomeScreen() {
   const firstName = user?.name?.split(' ')[0] || 'there';
   const hour = new Date().getHours();
   const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const matched = trainers.filter((t) => !topTrainers.slice(0, 6).some((x) => x.id === t.id));
+  // Trainers at the client's own gym first: no outside-trainer fee for them
+  const myGymId = clientProfile?.gym?.id;
+  const gymFirst = <X extends { gymIds?: string[] }>(list: X[]) =>
+    [...list].sort((a, b) => Number(trainsAtGym(b, myGymId)) - Number(trainsAtGym(a, myGymId)));
+  const matched = gymFirst(trainers.filter((t) => !topTrainers.slice(0, 6).some((x) => x.id === t.id)));
 
   return (
     <View style={{ flex: 1 }}>
@@ -206,9 +225,35 @@ export default function HomeScreen() {
               </View>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-                {topTrainers.map((t) => <TrainerCard key={t.id} trainer={t} variant="compact" />)}
+                {gymFirst(topTrainers).map((t) => <TrainerCard key={t.id} trainer={t} variant="compact" />)}
               </ScrollView>
             )}
+          </View>
+
+          {/* Gyms in your area */}
+          <View style={{ marginTop: 28 }}>
+            <Section title={`Gyms in ${city}`} action="See all" onAction={() => router.push('/gyms')} style={styles.px} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+              {gyms.map(({ g, n }) => {
+                const mine = g.id === clientProfile?.gym?.id;
+                return (
+                  <PressableScale key={g.id} onPress={() => router.push(`/gym/${g.id}` as any)} accessibilityLabel={`${g.name}, ${n} coaches`}>
+                    <Glass radius={T.radius.lg} style={[styles.gymCard, mine && { borderColor: T.ring2, borderWidth: 1.5 }]}>
+                      <Ionicons name="barbell" size={18} color={mine ? T.ring2 : T.text2} />
+                      <Text style={[type.headline, { fontSize: 14 }]} numberOfLines={2}>{g.name}</Text>
+                      <Text style={type.caption} numberOfLines={1}>{mine ? 'Your gym' : g.area || city}</Text>
+                      <Text style={[type.caption, { color: T.text }]}>{n} coach{n === 1 ? '' : 'es'}</Text>
+                    </Glass>
+                  </PressableScale>
+                );
+              })}
+              <PressableScale onPress={() => router.push('/gyms')} accessibilityLabel="Find or add a gym">
+                <Glass radius={T.radius.lg} style={[styles.gymCard, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="add-circle-outline" size={24} color={T.accent} />
+                  <Text style={[type.caption, { color: T.accent, textAlign: 'center' }]}>{gyms.length ? 'All gyms' : 'Add your gym'}</Text>
+                </Glass>
+              </PressableScale>
+            </ScrollView>
           </View>
 
           {/* Matched list */}
@@ -243,6 +288,7 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', gap: 10, marginTop: 4 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 54, paddingLeft: 16, paddingRight: 8, marginTop: 14 },
   searchBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: T.glassStrong, alignItems: 'center', justifyContent: 'center' },
+  gymCard: { width: 138, height: 128, padding: 12, gap: 4 },
   tiles: { flexDirection: 'row', gap: 10, height: 132, marginTop: 20 },
   tile: { flex: 1, borderRadius: T.radius.xl, padding: 16, justifyContent: 'space-between' },
   tileTitle: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },

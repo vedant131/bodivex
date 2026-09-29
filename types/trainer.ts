@@ -1,4 +1,5 @@
 import { SessionPreference, AthleteLevel } from './user';
+import { GymRef, InPersonPlace } from './gym';
 
 export type AvailabilityStatus = 'available_now' | 'busy' | 'offline';
 
@@ -41,7 +42,10 @@ export interface TrainerProfile {
   pricingOnline?: number; // per session in INR
   pricingOffline?: number;
   pricingMonthly?: number;
-  gymLocation?: GymLocation;
+  gymLocation?: GymLocation;      // legacy single gym; new profiles use `gyms`
+  gyms?: GymRef[];                // gyms where this trainer is allowed to train
+  gymIds?: string[];              // same ids, for array-contains queries
+  inPersonPlaces?: InPersonPlace[]; // where in-person sessions can happen
   sessionPreference: SessionPreference;
   isAvailableNow: boolean;      // "Taking bookings" switch; off = clients can't request
   leadCount?: number;           // distinct clients accepted (server-managed)
@@ -85,6 +89,8 @@ export interface TrainerFilter {
   language?: string;
   city?: string;
   gymName?: string;
+  gymId?: string;
+  inPersonPlace?: InPersonPlace;
   budgetRange?: string;
   searchQuery?: string;
   /** Only coaches who train this level (competitive / pro athletes) */

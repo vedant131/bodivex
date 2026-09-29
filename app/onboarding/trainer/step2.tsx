@@ -3,10 +3,13 @@ import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../../stores/authStore';
 import { OnboardingShell } from '../../../components/ui/OnboardingShell';
-import { Field, Input, Tile } from '../../../components/ui/Form';
+import { Field, Tile } from '../../../components/ui/Form';
 import { Chip } from '../../../components/ui/Bits';
 import { SPECIALIZATIONS } from '../../../types/trainer';
 import { SessionPreference, AthleteLevel, AthleteLevelLabel, FEDERATIONS } from '../../../types/user';
+import { GymRef, InPersonPlace, PLACE_LABEL, PLACE_ICON } from '../../../types/gym';
+import { GymPicker } from '../../../components/gym/GymPicker';
+import { placesOf } from '../../../services/trainers';
 
 const MODES: { value: SessionPreference; label: string; desc: string; icon: 'videocam' | 'barbell' | 'swap-horizontal' }[] = [
   { value: 'online', label: 'Online', desc: 'Video sessions', icon: 'videocam' },
@@ -18,14 +21,14 @@ export default function TrainerStep2() {
   const { trainerProfile, setTrainerProfile } = useAuthStore();
   const [specs, setSpecs] = useState<string[]>(trainerProfile?.specializations ?? []);
   const [pref, setPref] = useState<SessionPreference>(trainerProfile?.sessionPreference ?? 'both');
-  const [gymName, setGymName] = useState(trainerProfile?.gymLocation?.name ?? '');
-  const [gymAddress, setGymAddress] = useState(trainerProfile?.gymLocation?.address ?? '');
+  const [places, setPlaces] = useState<InPersonPlace[]>(placesOf(trainerProfile ?? {}).length ? placesOf(trainerProfile ?? {}) : ['gym']);
+  const [gyms, setGyms] = useState<GymRef[]>(trainerProfile?.gyms ?? []);
   const [levels, setLevels] = useState<AthleteLevel[]>(trainerProfile?.coachesLevels ?? ['enthusiast']);
   const [feds, setFeds] = useState<string[]>(trainerProfile?.federations ?? []);
 
   const inPerson = pref !== 'online';
-  // No invented gym: in-person coaches must say where they train
-  const valid = specs.length > 0 && levels.length > 0 && (!inPerson || gymName.trim().length >= 2);
+  // In-person coaches must say where; "at a gym" needs at least one real gym (no invented ones)
+  const valid = specs.length > 0 && levels.length > 0 && (!inPerson || (places.length > 0 && (!places.includes('gym') || gyms.length > 0)));
 
   const next = () => {
     setTrainerProfile({
@@ -34,16 +37,10 @@ export default function TrainerStep2() {
       sessionPreference: pref,
       coachesLevels: levels,
       federations: levels.some((l) => l !== 'enthusiast') ? feds : [],
-      gymLocation: inPerson
-        ? {
-            name: gymName.trim(),
-            address: gymAddress.trim(),
-            latitude: 0, // Note: set from a map pin when "near me" search is built
-            longitude: 0,
-            city: trainerProfile?.city ?? 'Mumbai',
-            state: 'Maharashtra',
-          }
-        : undefined,
+      inPersonPlaces: inPerson ? places : [],
+      gyms: inPerson && places.includes('gym') ? gyms : [],
+      gymIds: inPerson && places.includes('gym') ? gyms.map((g) => g.id) : [],
+      gymLocation: undefined,
     });
     router.push('/onboarding/trainer/step3');
   };
@@ -83,9 +80,18 @@ export default function TrainerStep2() {
       </Field>
 
       {inPerson && (
-        <Field label="Your gym">
-          <Input value={gymName} onChangeText={setGymName} placeholder="Gym name, e.g. Anytime Fitness Baner" />
-          <Input value={gymAddress} onChangeText={setGymAddress} placeholder="Area / address" />
+        <Field label="Where can you train clients in person?" hint="Home / society gyms and outdoor sessions have no gym entry fee for the client.">
+          <View style={styles.wrap}>
+            {(Object.keys(PLACE_LABEL) as InPersonPlace[]).map((pl) => (
+              <Chip key={pl} label={PLACE_LABEL[pl]} icon={PLACE_ICON[pl]} active={places.includes(pl)}
+                onPress={() => setPlaces(places.includes(pl) ? places.filter((x) => x !== pl) : [...places, pl])} />
+            ))}
+          </View>
+        </Field>
+      )}
+      {inPerson && places.includes('gym') && (
+        <Field label="Gyms where you're allowed to train" hint="Clients at these gyms see a “Trains at your gym” badge and pay no outside-trainer fee.">
+          <GymPicker city={trainerProfile?.city ?? 'Mumbai'} multiple selected={gyms} onChange={setGyms} placeholder="Choose your gyms" />
         </Field>
       )}
     </OnboardingShell>
