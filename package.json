@@ -75,7 +75,8 @@
     "typecheck": "tsc --noEmit",
     "check": "node scripts/check-flow.mjs",
     "check:ci": "supabase db reset && node scripts/seed.mjs && node scripts/check-flow.mjs",
-    "publish:friends": "npx -y eas-cli update --branch friends --environment production --non-interactive --message"
+    "publish:friends": "npx -y eas-cli update --branch friends --environment production --non-interactive --message",
+    "tunnel": "expo start --tunnel --port 8083 --clear"
   },
   "private": true
 }

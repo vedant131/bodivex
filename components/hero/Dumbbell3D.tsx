@@ -81,7 +81,7 @@ function Plate({ x, r, t }: { x: number; r: number; t: number }) {
 
 function Dumbbell({ motion, reduce }: { motion: React.MutableRefObject<Motion>; reduce: boolean }) {
   const group = useRef<Group>(null);
-  const drop = useRef({ y: reduce ? 0 : 2.8, v: 0, landed: reduce });
+  const drop = useRef({ y: reduce ? 0 : 2.2, v: reduce ? 0 : -6, landed: reduce }); // thrown down: lands in ~0.2s
 
   useFrame((state, dt) => {
     const g = group.current;
@@ -91,7 +91,7 @@ function Dumbbell({ motion, reduce }: { motion: React.MutableRefObject<Motion>; 
 
     // Entrance: damped spring from above, one haptic thud on first touchdown
     const d = drop.current;
-    d.v += (-60 * d.y - 7 * d.v) * dt;
+    d.v += (-140 * d.y - 10 * d.v) * dt; // stiff spring: one short bounce
     d.y += d.v * dt;
     if (!d.landed && d.y < 0) { d.landed = true; buzz(Haptics.ImpactFeedbackStyle.Heavy); }
 
