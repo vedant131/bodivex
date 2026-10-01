@@ -96,7 +96,11 @@ export const uploadFile = async (localUri: string, path: string, fallbackType: s
   const res = await fetch(localUri);
   const type = res.headers.get('content-type') || fallbackType;
   const body = await res.arrayBuffer();
-  must(await sb.storage.from(BUCKET).upload(path, body, { contentType: type, upsert: true }));
+  const { error } = await sb.storage.from(BUCKET).upload(path, body, { contentType: type, upsert: true });
+  if (error && /maximum allowed size|too large/i.test(error.message)) {
+    throw new Error(`This file is ${Math.round(body.byteLength / 1048576)} MB, over the 50 MB limit. Go back and pick a smaller or shorter one.`);
+  }
+  if (error) throw new Error(error.message);
   // Cache-bust so a replaced photo/video shows the new version
   return `${sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
 };

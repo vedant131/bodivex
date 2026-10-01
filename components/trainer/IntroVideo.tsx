@@ -12,6 +12,7 @@ import { T, type } from '../../constants/theme';
 
 export const INTRO_MIN_S = 30;
 export const INTRO_MAX_S = 60;
+const INTRO_MAX_MB = 45; // storage caps files at 50MB (free plan)
 
 /** Muted, looping autoplay clip; tap to toggle sound. */
 export function IntroVideoPlayer({ uri, height = 220, radius = T.radius.xl, soundBottom = 12 }: {
@@ -43,7 +44,14 @@ export function IntroVideoPicker({ uri, onChange }: { uri?: string; onChange: (u
   const pick = async (camera: boolean) => {
     setBusy(true);
     try {
-      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['videos'], videoMaxDuration: INTRO_MAX_S, quality: 0.7 };
+      const opts: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ['videos'],
+        videoMaxDuration: INTRO_MAX_S,
+        // iOS: phones shoot 4K HEVC (100MB+/min). Record at VGA and transcode picks to 540p H.264,
+        // which stays well under the upload limit and also plays on Android.
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.VGA640x480,
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540,
+      };
       if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) {
         Alert.alert('Camera access needed', 'Allow camera access in Settings to record your intro.');
         return;
@@ -55,6 +63,12 @@ export function IntroVideoPicker({ uri, onChange }: { uri?: string; onChange: (u
       // Note: some web pickers report no duration; the storage rule still caps size.
       if (a.duration && (secs < INTRO_MIN_S - 0.5 || secs > INTRO_MAX_S + 0.5)) {
         Alert.alert('Video length', `Your clip is ${Math.round(secs)}s. It needs to be ${INTRO_MIN_S}–${INTRO_MAX_S} seconds.`);
+        return;
+      }
+      // Note: Android pickers can't compress; a 1080p minute is ~100MB. Ask for 720p there
+      // until we add on-device compression (needs a development build, not Expo Go).
+      if (a.fileSize && a.fileSize > INTRO_MAX_MB * 1024 * 1024) {
+        Alert.alert('Video too large', `This clip is ${Math.round(a.fileSize / 1048576)} MB (max ${INTRO_MAX_MB} MB). Record it at 720p in your camera settings, or pick a shorter clip.`);
         return;
       }
       onChange(a.uri);
