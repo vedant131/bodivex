@@ -1,15 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useFonts, BigShouldersDisplay_900Black } from '@expo-google-fonts/big-shoulders-display';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { PressableScale } from '../../components/ui/PressableScale';
+import { RingGyro } from '../../components/ui/RingGyro';
 import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
+
+const LINES = ['Your coach.', 'Your city.', 'Your pace.'];
 
 function RoleCard({ role, icon, title, sub, delay }: {
   role: UserRole; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; delay: number;
@@ -19,13 +23,13 @@ function RoleCard({ role, icon, title, sub, delay }: {
       <PressableScale onPress={() => router.push({ pathname: '/(auth)/phone', params: { role } })} accessibilityLabel={title}>
         <Glass radius={T.radius.xl} interactive style={styles.card}>
           <LinearGradient colors={role === 'client' ? T.gradient : [T.ring3, '#3B5BFF']} style={styles.cardIcon}>
-            <Ionicons name={icon} size={24} color="#fff" />
+            <Ionicons name={icon} size={22} color="#fff" />
           </LinearGradient>
           <View style={{ flex: 1 }}>
             <Text style={type.headline}>{title}</Text>
             <Text style={[type.caption, { marginTop: 3 }]}>{sub}</Text>
           </View>
-          <Ionicons name="arrow-forward" size={20} color={T.text2} />
+          <Ionicons name="chevron-forward" size={18} color={T.text3} />
         </Glass>
       </PressableScale>
     </Animated.View>
@@ -33,34 +37,44 @@ function RoleCard({ role, icon, title, sub, delay }: {
 }
 
 export default function WelcomeScreen() {
+  const { width, height } = useWindowDimensions();
+  const [fontLoaded] = useFonts({ BigShouldersDisplay_900Black });
+  const compact = height < 740; // iPhone SE / small Androids
+  const ringSize = Math.min(width * 0.72, height * (compact ? 0.24 : 0.33), 320);
+  const lineH = compact ? 46 : 62;
+  const headline = fontLoaded
+    ? { fontFamily: 'BigShouldersDisplay_900Black', fontSize: lineH, lineHeight: lineH * 0.98, letterSpacing: 0.5, textTransform: 'uppercase' as const }
+    : { fontSize: lineH * 0.78, lineHeight: lineH * 0.9, fontWeight: '900' as const, letterSpacing: -1.4 };
+
   return (
-    <View style={{ flex: 1 }}>
+    // overflow hidden: the near side of a ring grows a few px past the edge in perspective
+    <View style={{ flex: 1, overflow: 'hidden' }}>
       <Backdrop preset="hero" />
       <SafeAreaView style={styles.safe}>
-        <Animated.View entering={FadeInDown.duration(600)} style={styles.brandRow}>
-          <LinearGradient colors={T.gradient} style={styles.logo}>
-            <Ionicons name="barbell" size={20} color="#fff" />
-          </LinearGradient>
+        <Animated.View entering={FadeIn.duration(500)} style={styles.brandRow}>
           <Text style={styles.brand}>bodivex</Text>
         </Animated.View>
 
-        <View style={styles.hero}>
-          <Animated.Text entering={FadeInDown.delay(100).duration(700)} style={styles.headline}>
-            Your coach.{'\n'}
-            <Text style={styles.headlineAccent}>Your city.</Text>{'\n'}
-            Your pace.
-          </Animated.Text>
-          <Animated.Text entering={FadeInDown.delay(250).duration(700)} style={[type.body, { color: T.text2, marginTop: 14 }]}>
-            Verified personal trainers across Maharashtra. Online or at your gym.
+        <RingGyro size={ringSize} />
+
+        <View>
+          {/* One orchestrated entrance: each line rises out of its own mask after the rings appear */}
+          {LINES.map((line, i) => (
+            <View key={line} style={{ overflow: 'hidden', height: lineH }}>
+              <Animated.Text entering={FadeInUp.delay(450 + i * 120).duration(650)} style={[styles.headline, headline]}>
+                {line}
+              </Animated.Text>
+            </View>
+          ))}
+          <Animated.Text entering={FadeIn.delay(900).duration(600)} style={styles.sub}>
+            Book verified personal trainers across Maharashtra, online or at your gym.
           </Animated.Text>
         </View>
 
-        <View style={{ gap: 12 }}>
-          <RoleCard role="client" icon="search" title="I'm looking for a coach" sub="Find and book a verified trainer" delay={350} />
-          <RoleCard role="trainer" icon="barbell" title="I'm a coach" sub="Get clients near you · free to list" delay={450} />
-          <Text style={[type.caption, { textAlign: 'center', color: T.text3, marginTop: 8 }]}>
-            By continuing you agree to our Terms & Privacy Policy
-          </Text>
+        <View style={{ gap: 10 }}>
+          <RoleCard role="client" icon="search" title="Find a coach" sub="Browse verified trainers and book a session" delay={1000} />
+          <RoleCard role="trainer" icon="barbell" title="I'm a coach" sub="List for free and get clients near you" delay={1100} />
+          <Text style={styles.terms}>By continuing you agree to our Terms and Privacy Policy</Text>
         </View>
       </SafeAreaView>
     </View>
@@ -68,13 +82,12 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, paddingHorizontal: 20, paddingBottom: 12, justifyContent: 'space-between' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  logo: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  brand: { color: T.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
-  hero: { flex: 1, justifyContent: 'center' },
-  headline: { color: T.text, fontSize: 46, fontWeight: '900', letterSpacing: -1.6, lineHeight: 50 },
-  headlineAccent: { color: T.accent },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
-  cardIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  safe: { flex: 1, paddingHorizontal: 20, paddingBottom: 10, justifyContent: 'space-between' },
+  brandRow: { marginTop: 6 },
+  brand: { color: T.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  headline: { color: T.text },
+  sub: { ...type.body, color: T.text2, marginTop: 12, maxWidth: 340 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+  cardIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  terms: { ...type.caption, textAlign: 'center', color: T.text3, marginTop: 6 },
 });
