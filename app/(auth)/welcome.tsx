@@ -9,7 +9,7 @@ import { useFonts, BigShouldersDisplay_900Black } from '@expo-google-fonts/big-s
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { PressableScale } from '../../components/ui/PressableScale';
-import { RingGyro } from '../../components/ui/RingGyro';
+import { Dumbbell3D } from '../../components/hero/Dumbbell3D';
 import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
 
@@ -40,14 +40,14 @@ export default function WelcomeScreen() {
   const { width, height } = useWindowDimensions();
   const [fontLoaded] = useFonts({ BigShouldersDisplay_900Black });
   const compact = height < 740; // iPhone SE / small Androids
-  const ringSize = Math.min(width * 0.72, height * (compact ? 0.24 : 0.33), 320);
+  const heroH = Math.min(width * 0.8, height * (compact ? 0.26 : 0.34), 340);
   const lineH = compact ? 46 : 62;
   const headline = fontLoaded
     ? { fontFamily: 'BigShouldersDisplay_900Black', fontSize: lineH, lineHeight: lineH * 0.98, letterSpacing: 0.5, textTransform: 'uppercase' as const }
     : { fontSize: lineH * 0.78, lineHeight: lineH * 0.9, fontWeight: '900' as const, letterSpacing: -1.4 };
 
   return (
-    // overflow hidden: the near side of a ring grows a few px past the edge in perspective
+    // overflow hidden: the 3D hero bleeds edge to edge
     <View style={{ flex: 1, overflow: 'hidden' }}>
       <Backdrop preset="hero" />
       <SafeAreaView style={styles.safe}>
@@ -55,7 +55,7 @@ export default function WelcomeScreen() {
           <Text style={styles.brand}>bodivex</Text>
         </Animated.View>
 
-        <RingGyro size={ringSize} />
+        <Dumbbell3D height={heroH} />
 
         <View>
           {/* One orchestrated entrance: each line rises out of its own mask after the rings appear */}
