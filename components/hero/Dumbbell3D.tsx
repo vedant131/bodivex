@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, PanResponder, Platform } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { DeviceMotion } from 'expo-sensors';
@@ -133,14 +133,6 @@ function Dumbbell({ motion, reduce }: { motion: React.MutableRefObject<Motion>; 
   );
 }
 
-/** If GL isn't available on a device, the landing page still works without the hero. */
-class GLBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(e: unknown) { console.warn('3D hero unavailable', e); }
-  render() { return this.state.failed ? null : this.props.children; }
-}
-
 export function Dumbbell3D({ height }: { height: number }) {
   const reduce = useReducedMotion();
   const motion = useRef<Motion>({ angle: 0.6, vel: reduce ? 0 : IDLE_SPEED, dragging: false, lastDx: 0, tiltX: 0, tiltZ: 0 });
@@ -187,11 +179,9 @@ export function Dumbbell3D({ height }: { height: number }) {
   return (
     <View style={{ height, marginHorizontal: -20 }} {...pan.panHandlers}
       accessible accessibilityRole="image" accessibilityLabel="3D dumbbell. Swipe to spin it.">
-      <GLBoundary>
         <Canvas camera={{ position: [0, 0.35, 4.3], fov: 34 }} style={{ flex: 1 }}>
           <Dumbbell motion={motion} reduce={reduce} />
         </Canvas>
-      </GLBoundary>
     </View>
   );
 }

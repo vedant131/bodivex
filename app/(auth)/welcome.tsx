@@ -9,7 +9,7 @@ import { useFonts, BigShouldersDisplay_900Black } from '@expo-google-fonts/big-s
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { PressableScale } from '../../components/ui/PressableScale';
-import { Dumbbell3D } from '../../components/hero/Dumbbell3D';
+import { Hero3D } from '../../components/hero/Hero3D';
 import { T, type } from '../../constants/theme';
 import { UserRole } from '../../types/user';
 
@@ -55,7 +55,7 @@ export default function WelcomeScreen() {
           <Text style={styles.brand}>bodivex</Text>
         </Animated.View>
 
-        <Dumbbell3D height={heroH} />
+        <Hero3D height={heroH} />
 
         <View>
           {/* One orchestrated entrance: each line rises out of its own mask after the rings appear */}
