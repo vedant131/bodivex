@@ -52,3 +52,4 @@ functions/.secret.local
 # Backend config (see .env.example)
 .env
 firebase-export-*/
+.env.production

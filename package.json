@@ -29,6 +29,7 @@
     "expo-secure-store": "~57.0.3",
     "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.24",
     "expo-video": "~57.0.5",
     "nativewind": "^4.2.6",
     "react": "19.2.3",
@@ -65,7 +66,8 @@
     "seed": "node scripts/seed.mjs",
     "typecheck": "tsc --noEmit",
     "check": "node scripts/check-flow.mjs",
-    "check:ci": "supabase db reset && node scripts/seed.mjs && node scripts/check-flow.mjs"
+    "check:ci": "supabase db reset && node scripts/seed.mjs && node scripts/check-flow.mjs",
+    "publish:friends": "eas update --branch friends --environment production --non-interactive --message"
   },
   "private": true
 }

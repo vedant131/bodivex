@@ -12,6 +12,12 @@ const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false } }
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
 
+// Friends-only test deployment: let trainers "pay" the new-client fee with a test payment.
+if (process.env.ALLOW_TEST_PAYMENTS === 'true') {
+  must(await admin.from('app_settings').upsert({ key: 'allow_test_payments', value: 'true' }));
+  console.log('✓ test payments enabled');
+}
+
 // Must match signInWithPhone() in services/auth.ts
 const PASSWORD = 'dev-only-password';
 const emailFor = (phone) => `${phone.replace(/\D/g, '')}@phone.bodivex.dev`;
