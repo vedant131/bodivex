@@ -67,7 +67,7 @@
     "typecheck": "tsc --noEmit",
     "check": "node scripts/check-flow.mjs",
     "check:ci": "supabase db reset && node scripts/seed.mjs && node scripts/check-flow.mjs",
-    "publish:friends": "eas update --branch friends --environment production --non-interactive --message"
+    "publish:friends": "npx -y eas-cli update --branch friends --environment production --non-interactive --message"
   },
   "private": true
 }
