@@ -1,17 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '../stores/authStore';
-import { rankTrainers, RankingScope, RankingMode, RankedTrainer, getTrainers } from '../services/trainers';
+import { getRankings, RankingScope, RankingMode, RankedTrainer } from '../services/trainers';
 import { Screen } from '../components/ui/Screen';
 import { Glass } from '../components/ui/Glass';
 import { PressableScale } from '../components/ui/PressableScale';
 import { Avatar, Chip, IconButton } from '../components/ui/Bits';
 import { T, type } from '../constants/theme';
-import { TrainerProfile } from '../types/trainer';
 import { Skeleton } from '../components/ui/Skeleton';
 
 const MODES: { id: RankingMode; label: string }[] = [
@@ -44,17 +43,22 @@ export default function LeaderboardScreen() {
   const city = trainerProfile?.city || clientProfile?.city || 'Mumbai';
   const [scope, setScope] = useState<RankingScope>('city');
   const [mode, setMode] = useState<RankingMode>('all');
-  const [trainers, setTrainers] = useState<TrainerProfile[]>([]);
+  const [ranked, setRanked] = useState<RankedTrainer[]>([]);
+  const [myRank, setMyRank] = useState<number | undefined>();
   const [loading, setLoading] = useState(true);
 
+  // Ranked in the database: only the top 100 come down, plus this coach's own position
   useEffect(() => {
-    getTrainers().then(setTrainers).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  const ranked = useMemo(() => rankTrainers(trainers, scope, city, mode), [trainers, scope, city, mode]);
+    let live = true;
+    setLoading(true);
+    getRankings(scope, city, mode)
+      .then((r) => { if (live) { setRanked(r.ranked); setMyRank(r.myRank); } })
+      .catch(() => {})
+      .finally(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [scope, city, mode]);
   const podium = ranked.length >= 3 ? ranked.slice(0, 3) : [];
   const rest = podium.length ? ranked.slice(3) : ranked;
-  const myRank = trainerProfile ? ranked.find((r) => r.trainer.id === trainerProfile.id)?.rank : undefined;
 
   return (
     <Screen preset="hero" edges={['top']}>

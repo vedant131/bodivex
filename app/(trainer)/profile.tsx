@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../stores/authStore';
 import {
-  addTransformation, getTransformations, getTrainerQA, answerTrainerQuestion, getTrainerReviews,
+  addTransformation, getTransformations, getTrainerQA, answerTrainerQuestion, getTrainerReviews, getTrainerSocial,
 } from '../../services/trainers';
+import { SOCIALS } from '../../components/trainer/SocialFields';
 import { logout as signOutUser } from '../../services/auth';
 import { Screen } from '../../components/ui/Screen';
 import { Glass } from '../../components/ui/Glass';
@@ -28,7 +30,7 @@ import { Avatar, Section } from '../../components/ui/Bits';
 import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { CONFIG, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../constants/config';
-import { Transformation, TrainerQA, TrainerReview } from '../../types/trainer';
+import { Transformation, TrainerQA, TrainerReview, TrainerSocial } from '../../types/trainer';
 import { Alert } from '../../components/ui/Feedback';
 
 export default function TrainerProfileTab() {
@@ -36,6 +38,7 @@ export default function TrainerProfileTab() {
   const [results, setResults] = useState<Transformation[]>([]);
   const [qa, setQa] = useState<TrainerQA[]>([]);
   const [reviews, setReviews] = useState<TrainerReview[]>([]);
+  const [social, setSocial] = useState<TrainerSocial>({});
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [answering, setAnswering] = useState<string | null>(null);
 
@@ -53,6 +56,11 @@ export default function TrainerProfileTab() {
     getTrainerQA(p.id).then(setQa).catch(() => {});
     getTrainerReviews(p.id).then(setReviews).catch(() => {});
   }, [p?.id]);
+
+  // Refresh on focus so handles edited in Edit profile show up straight away
+  useFocusEffect(useCallback(() => {
+    if (p) getTrainerSocial(p.id).then(setSocial).catch(() => {});
+  }, [p?.id]));
 
   if (!p) return null;
 
@@ -140,6 +148,30 @@ export default function TrainerProfileTab() {
             ? `${CONFIG.freeClientsPerTrainer - (p.leadCount ?? 0)} free new clients left · then ₹${CONFIG.newClientFee} per new client`
             : `₹${CONFIG.newClientFee} per new client · ₹${p.feesPaid ?? 0} paid so far`}
         </Text>
+
+        {/* Social accounts */}
+        <View>
+          <Section title="Social accounts" action={SOCIALS.some((x) => social[x.key]) ? 'Edit' : 'Add'} onAction={() => router.push('/profile-edit')} />
+          {SOCIALS.some((x) => social[x.key]) ? (
+            <Glass radius={T.radius.lg} style={styles.socials}>
+              {SOCIALS.filter((x) => social[x.key]).map((x) => (
+                <PressableScale key={x.key} onPress={() => Linking.openURL(x.url(social[x.key]!))} style={styles.socialRow}
+                  accessibilityLabel={`Open your ${x.label}`}>
+                  <Ionicons name={x.icon} size={18} color={T.text} />
+                  <Text style={[type.body, { flex: 1 }]} numberOfLines={1}>@{social[x.key]}</Text>
+                  <Ionicons name="open-outline" size={16} color={T.text3} />
+                </PressableScale>
+              ))}
+              <Text style={type.caption}>Clients see these after you accept their booking.</Text>
+            </Glass>
+          ) : (
+            <PressableScale onPress={() => router.push('/profile-edit')} accessibilityLabel="Add social accounts">
+              <Glass radius={T.radius.lg} style={styles.empty}>
+                <Text style={type.caption}>Add Instagram, YouTube, Facebook or X. Clients see them after you accept their booking.</Text>
+              </Glass>
+            </PressableScale>
+          )}
+        </View>
 
         {/* Questions */}
         <View>
@@ -281,6 +313,8 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingHorizontal: 9, height: 24, borderRadius: 12 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   stats: { flexDirection: 'row', gap: 10 },
+  socials: { padding: 14, gap: 12 },
+  socialRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stat: { flex: 1, padding: 12, gap: 2 },
   statV: { color: T.text, fontSize: 20, fontWeight: '800' },
   empty: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },

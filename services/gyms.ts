@@ -22,16 +22,12 @@ export const addGym = async (g: { name: string; area: string; city: string }): P
   return fromRow<Gym>(row);
 };
 
-/** Approved trainers who train at this gym. */
-export const getTrainersAtGym = async (gym: Gym): Promise<TrainerProfile[]> =>
-  (await getTrainers({ city: gym.city })).filter((t) => t.gymIds?.includes(gym.id));
+/** Approved trainers who train at this gym. Note: first 50; page it if a gym ever has more. */
+export const getTrainersAtGym = (gym: Gym): Promise<TrainerProfile[]> => getTrainers({ city: gym.city, gymId: gym.id }, 0, 50);
 
-/** gymId -> number of approved trainers there (one query per city, counted client-side). */
-export const getTrainerCountsByGym = async (city: string): Promise<Record<string, number>> => {
-  const counts: Record<string, number> = {};
-  for (const t of await getTrainers({ city })) for (const id of t.gymIds ?? []) counts[id] = (counts[id] ?? 0) + 1;
-  return counts;
-};
+/** gymId -> number of approved trainers there, counted in the database. */
+export const getTrainerCountsByGym = async (city: string): Promise<Record<string, number>> =>
+  Object.fromEntries(must(await sb.rpc('trainer_counts_by_gym', { p_city: city })).map((r: any) => [r.gym_id, r.coaches]));
 
 /** Does this trainer train at the client's gym? */
 export const trainsAtGym = (t: Pick<TrainerProfile, 'gymIds'>, gymId?: string) => !!gymId && !!t.gymIds?.includes(gymId);

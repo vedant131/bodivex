@@ -7,7 +7,7 @@ import { Glass } from '../../../components/ui/Glass';
 import { T, type } from '../../../constants/theme';
 import { CONFIG } from '../../../constants/config';
 import { useAuthStore } from '../../../stores/authStore';
-import { createTrainerProfile } from '../../../services/trainers';
+import { createTrainerProfile, saveTrainerSocial } from '../../../services/trainers';
 import { updateUserProfile } from '../../../services/auth';
 import { uploadImage, uploadVideo } from '../../../services/storage';
 import { Alert } from '../../../components/ui/Feedback';
@@ -59,6 +59,7 @@ export default function TrainerStep5() {
       };
 
       await createTrainerProfile(user.id, profileData);
+      if (trainerProfile.social && Object.keys(trainerProfile.social).length) await saveTrainerSocial(user.id, trainerProfile.social);
       await updateUserProfile(user.id, { name: profileData.name });
       setUser({ ...user, name: profileData.name });
       setTrainerProfile({

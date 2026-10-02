@@ -37,7 +37,7 @@ const VIDEO = 'https://example.com/intro.mp4';
 const trainer = await newUser('70', 'trainer');
 must(await trainer.db.from('trainers').insert({ id: trainer.uid, user_id: trainer.uid, name: 'Check Coach', city: 'Mumbai', pricing_online: 499, video_intro_url: VIDEO }));
 must(await admin.from('trainers').update({ is_kyc_approved: true, kyc_status: 'approved', is_available_now: true }).eq('id', trainer.uid));
-must(await trainer.db.from('trainer_private').insert({ trainer_id: trainer.uid, instagram: 'check.coach' }));
+must(await trainer.db.from('trainer_private').insert({ trainer_id: trainer.uid, instagram: 'check.coach', facebook: 'check.fb' }));
 const accept = (sessionId, payment = null) => trainer.db.rpc('accept_booking', { p_session: sessionId, p_payment: payment });
 
 // ── Client signs up
@@ -107,6 +107,8 @@ assert.equal(must(await accept(first.id)).fee, 0);
 ok('new client #1 accepted free');
 const confirmed = must(await client.db.from('sessions').select().eq('id', first.id).single());
 assert.equal(confirmed.trainer_social?.instagram, 'check.coach');
+assert.equal(confirmed.trainer_social?.facebook, 'check.fb');
+assert.equal(confirmed.trainer_social?.trainer_id, undefined);
 ok('socials revealed to client only after acceptance');
 assert.ok(confirmed.video_call_room_id, 'online session gets a video room');
 ok('online session got a video room');
@@ -189,6 +191,24 @@ await blocked(client.db.from('qa').update({ answer: 'fake answer' }).eq('id', qa
 await blocked(trainer.db.from('qa').update({ answer: 'WhatsApp me' }).eq('id', qa.id).select(), 'trainer sharing contact in answer');
 must(await trainer.db.from('qa').update({ answer: 'Yes!', answered_at: new Date().toISOString() }).eq('id', qa.id));
 ok('trainer answered question');
+
+// ── Scale: search, rankings and chat filters run in the database
+const page1 = must(await client.db.rpc('search_trainers', { p_city: 'Mumbai', p_limit: 2, p_offset: 0 }));
+const page2 = must(await client.db.rpc('search_trainers', { p_city: 'Mumbai', p_limit: 2, p_offset: 2 }));
+assert.equal(page1.length, 2); assert.ok(!page2.some((t) => page1.some((u) => u.id === t.id)));
+ok('search returns one page at a time, no overlap between pages');
+const byText = must(await client.db.rpc('search_trainers', { p_q: 'check coach' }));
+assert.ok(byText.some((t) => t.id === trainer.uid));
+assert.ok(!must(await client.db.rpc('search_trainers', { p_q: 'New Coach' })).some((t) => t.id === pending.uid));
+ok('text search runs on the server and still hides unapproved coaches');
+const ranks = must(await client.db.rpc('trainer_rankings', { p_city: null, p_mode: 'all', p_limit: 500 }));
+assert.ok(ranks.every((r, i) => i === 0 || r.rank >= ranks[i - 1].rank));
+const mine = must(await trainer.db.rpc('my_trainer_rank', { p_city: null, p_mode: 'all' }));
+assert.equal(mine, ranks.find((r) => r.trainer.id === trainer.uid).rank);
+assert.equal(must(await pending.db.rpc('my_trainer_rank', { p_city: null, p_mode: 'all' })), null);
+ok(`rankings computed in the database (coach is #${mine}; unapproved coach has no rank)`);
+assert.equal(must(await client.db.from('chats').select('client_id').eq('id', first.chatId).single()).client_id, client.uid);
+ok('chats carry client_id so live updates can be filtered per user');
 
 // ── File storage: own folder only
 const png = new Uint8Array([137, 80, 78, 71]);

@@ -35,6 +35,7 @@ export interface TrainerProfile {
   bio: string;
   profilePhoto?: string;
   videoIntroUrl?: string;
+  social?: TrainerSocial;       // onboarding draft only; saved to trainer_private, never a trainers column
   specializations: string[];
   certifications: Certification[];
   medals: Medal[];
@@ -81,20 +82,15 @@ export interface Transformation {
 }
 
 export interface TrainerFilter {
+  city?: string;                  // omit for every city (online coaches)
+  searchQuery?: string;           // name, bio, specialization or gym
   specializations?: string[];
-  maxPrice?: number;
-  minRating?: number;
   sessionPreference?: SessionPreference;
-  isAvailableNow?: boolean;
-  language?: string;
-  city?: string;
-  gymName?: string;
-  gymId?: string;
-  inPersonPlace?: InPersonPlace;
-  budgetRange?: string;
-  searchQuery?: string;
   /** Only coaches who train this level (competitive / pro athletes) */
   athleteLevel?: 'competitive' | 'pro';
+  gymId?: string;
+  inPersonPlace?: InPersonPlace;
+  preferGymId?: string;           // list coaches at this gym first
 }
 
 export interface TrainerReview {
@@ -148,6 +144,8 @@ export const SPECIALIZATIONS = [
 export interface TrainerSocial {
   instagram?: string;
   youtube?: string;
+  facebook?: string;
+  x?: string;
 }
 
 export type Specialization = typeof SPECIALIZATIONS[number];

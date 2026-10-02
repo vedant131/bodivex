@@ -1,3 +1,4 @@
+import type { TrainerSocial } from './trainer';
 export type SessionType = 'online' | 'offline';
 
 // Clients pay trainers directly, so a session is just a booking request.
@@ -25,7 +26,7 @@ export interface Session {
   slotKey: string;             // YYYY-MM-DD-HH, doc id of the trainer's slot lock
   price: number;               // Trainer's quoted price, paid directly to trainer
   chatId?: string;
-  trainerSocial?: { instagram?: string; youtube?: string }; // revealed after acceptance
+  trainerSocial?: TrainerSocial; // revealed after acceptance
   videoCallRoomId?: string;     // Jitsi room for online sessions (set on accept)
   confirmedAt?: Date;
   clientRating?: number;

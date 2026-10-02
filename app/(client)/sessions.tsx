@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
 import { subscribeToClientSessions, clientCompleteSession, clientCancelSession } from '../../services/bookings';
 import { openVideoCall } from '../../services/video';
+import { SOCIALS } from '../../components/trainer/SocialFields';
 import { Screen } from '../../components/ui/Screen';
 import { Glass } from '../../components/ui/Glass';
 import { Button } from '../../components/ui/Button';
@@ -130,14 +131,10 @@ export default function ClientSessionsScreen() {
                       <IconButton icon="chatbubble-ellipses" label="Chat" size={42}
                         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: s.chatId!, name: s.trainerName, photo: s.trainerPhoto } })} />
                     )}
-                    {confirmed && s.trainerSocial?.instagram && (
-                      <IconButton icon="logo-instagram" label={`${s.trainerName} on Instagram`} size={42}
-                        onPress={() => Linking.openURL(`https://instagram.com/${s.trainerSocial!.instagram}`)} />
-                    )}
-                    {confirmed && s.trainerSocial?.youtube && (
-                      <IconButton icon="logo-youtube" label={`${s.trainerName} on YouTube`} size={42}
-                        onPress={() => Linking.openURL(`https://youtube.com/@${s.trainerSocial!.youtube}`)} />
-                    )}
+                    {confirmed && SOCIALS.filter((x) => s.trainerSocial?.[x.key]).map((x) => (
+                      <IconButton key={x.key} icon={x.icon} label={`${s.trainerName} on ${x.label}`} size={42}
+                        onPress={() => Linking.openURL(x.url(s.trainerSocial![x.key]!))} />
+                    ))}
                     {confirmed && s.type === 'online' && (
                       <Button title="Join call" icon="videocam" variant="glass" size="sm" onPress={() => openVideoCall(s.videoCallRoomId)} />
                     )}

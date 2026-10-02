@@ -7,6 +7,8 @@ import { Field, Input, PhotoPick } from '../../../components/ui/Form';
 import { Chip } from '../../../components/ui/Bits';
 import { CITIES, CONTACT_INFO_PATTERN, CONTACT_INFO_MESSAGE } from '../../../constants/config';
 import { Alert } from '../../../components/ui/Feedback';
+import { SocialFields, cleanSocial } from '../../../components/trainer/SocialFields';
+import { TrainerSocial } from '../../../types/trainer';
 
 export default function TrainerStep1() {
   const { trainerProfile, setTrainerProfile, user } = useAuthStore();
@@ -15,11 +17,14 @@ export default function TrainerStep1() {
   const [city, setCity] = useState<string>(trainerProfile?.city ?? 'Mumbai');
   const [experience, setExperience] = useState(trainerProfile?.experience?.toString() ?? '');
   const [photo, setPhoto] = useState<string | null>(trainerProfile?.profilePhoto ?? null);
+  const [social, setSocial] = useState<TrainerSocial>(trainerProfile?.social ?? {});
 
   const valid = name.trim().length >= 2 && bio.trim().length >= 20 && experience !== '';
 
   const next = () => {
     if (CONTACT_INFO_PATTERN.test(bio)) return Alert.alert('Keep it on Bodivex', CONTACT_INFO_MESSAGE);
+    const cleaned = cleanSocial(social);
+    if (cleaned.error) return Alert.alert('Check your social handles', cleaned.error);
     setTrainerProfile({
       ...trainerProfile!,
       name: name.trim(),
@@ -27,6 +32,7 @@ export default function TrainerStep1() {
       city,
       experience: Number(experience),
       profilePhoto: photo ?? undefined,
+      social: cleaned.social,
     });
     router.push('/onboarding/trainer/step2');
   };
@@ -46,6 +52,9 @@ export default function TrainerStep1() {
       <Field label="Bio" hint={`${bio.trim().length}/20 characters minimum. No phone numbers or links.`}>
         <Input value={bio} onChangeText={setBio} placeholder="How do you coach? Who do you help best?" multiline maxLength={400}
           style={{ minHeight: 110, textAlignVertical: 'top' }} />
+      </Field>
+      <Field label="Social accounts (optional)" hint="Shown to a client only after you accept their booking, so first contact stays on Bodivex.">
+        <SocialFields value={social} onChange={setSocial} />
       </Field>
     </OnboardingShell>
   );

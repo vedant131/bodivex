@@ -117,7 +117,7 @@ export default function TrainerProfileScreen() {
         {/* Hero: intro video (muted loop) or photo */}
         <View style={{ height: heroH }}>
           {trainer.videoIntroUrl ? (
-            <IntroVideoPlayer uri={trainer.videoIntroUrl} height={heroH} radius={0} soundBottom={104} />
+            <IntroVideoPlayer uri={trainer.videoIntroUrl} poster={trainer.profilePhoto} height={heroH} radius={0} soundBottom={104} />
           ) : trainer.profilePhoto ? (
             <Image source={{ uri: trainer.profilePhoto }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
           ) : (

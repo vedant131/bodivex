@@ -13,48 +13,25 @@ export const placesOf = (t: Partial<Pick<TrainerProfile, 'inPersonPlaces' | 'ses
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-export const getTrainers = async (filter?: TrainerFilter): Promise<TrainerProfile[]> => {
-  let q = sb.from('trainers').select().eq('is_kyc_approved', true);
-  if (filter?.sessionPreference && filter.sessionPreference !== 'both') {
-    q = q.in('session_preference', [filter.sessionPreference, 'both']);
-  }
-  if (filter?.isAvailableNow) q = q.eq('is_available_now', true);
-  if (filter?.city) q = q.eq('city', filter.city);
+export const PAGE_SIZE = 20;
 
-  let trainers = must(await q).map(toTrainerProfile);
-
-  // Note: client-side filtering is fine for a few hundred trainers per city;
-  // move these into the query (or a search index) when search gets slow.
-  if (filter?.minRating) {
-    trainers = trainers.filter((t) => t.rating >= filter.minRating!);
-  }
-  if (filter?.maxPrice) {
-    trainers = trainers.filter(
-      (t) => (t.pricingOnline ?? Infinity) <= filter.maxPrice! || (t.pricingOffline ?? Infinity) <= filter.maxPrice!
-    );
-  }
-  if (filter?.specializations?.length) {
-    trainers = trainers.filter((t) => filter.specializations!.some((s) => t.specializations.includes(s)));
-  }
-  if (filter?.gymName) {
-    const g = filter.gymName.toLowerCase();
-    trainers = trainers.filter((t) => t.gymLocation?.name.toLowerCase().includes(g));
-  }
-  if (filter?.gymId) {
-    trainers = trainers.filter((t) => t.gymIds?.includes(filter.gymId!));
-  }
-  if (filter?.inPersonPlace) {
-    trainers = trainers.filter((t) => placesOf(t).includes(filter.inPersonPlace!));
-  }
-  if (filter?.athleteLevel) {
-    trainers = trainers.filter((t) => (t.coachesLevels ?? ['enthusiast']).includes(filter.athleteLevel!));
-  }
-  if (filter?.language) {
-    trainers = trainers.filter((t) => t.languages?.includes(filter.language!));
-  }
-
-  return trainers.sort((a, b) => b.rating - a.rating);
-};
+/**
+ * One page of approved coaches. All filtering, text search and sorting happen in the
+ * database (search_trainers), so the phone only downloads what it shows.
+ */
+export const getTrainers = async (filter: TrainerFilter = {}, page = 0, pageSize = PAGE_SIZE): Promise<TrainerProfile[]> =>
+  (must(await sb.rpc('search_trainers', {
+    p_city: filter.city ?? null,
+    p_q: filter.searchQuery?.trim() || null,
+    p_specs: filter.specializations?.length ? filter.specializations : null,
+    p_pref: filter.sessionPreference && filter.sessionPreference !== 'both' ? filter.sessionPreference : null,
+    p_level: filter.athleteLevel ?? null,
+    p_gym: filter.gymId ?? null,
+    p_place: filter.inPersonPlace ?? null,
+    p_prefer_gym: filter.preferGymId ?? null,
+    p_limit: pageSize,
+    p_offset: page * pageSize,
+  })) as any[]).map(toTrainerProfile);
 
 export const getTrainerById = async (id: string): Promise<TrainerProfile | null> => {
   const row = must(await sb.from('trainers').select().eq('id', id).maybeSingle());
@@ -85,11 +62,6 @@ export const updateTrainerProfile = async (id: string, data: Partial<TrainerProf
 export const updateAvailability = async (id: string, isAvailableNow: boolean): Promise<void> =>
   updateTrainerProfile(id, { isAvailableNow, availabilityStatus: isAvailableNow ? 'available_now' : 'offline' });
 
-export const updateTrainerRates = async (
-  trainerId: string,
-  rates: Pick<TrainerProfile, 'pricingOnline' | 'pricingOffline' | 'pricingMonthly'>
-): Promise<void> => updateTrainerProfile(trainerId, rates);
-
 // ─── New-client fee ledger (written by accept_booking) ──────────────────────
 
 export interface Lead {
@@ -107,12 +79,16 @@ export const getTrainerLeads = async (uid: string): Promise<Lead[]> =>
 // ─── Social handles (private until a booking is accepted) ────────────────────
 
 export const getTrainerSocial = async (uid: string): Promise<TrainerSocial> => {
-  const row = must(await sb.from('trainer_private').select('instagram, youtube').eq('trainer_id', uid).maybeSingle());
+  const row = must(await sb.from('trainer_private').select('instagram, youtube, facebook, x').eq('trainer_id', uid).maybeSingle());
   return row ? fromRow<TrainerSocial>(row) : {};
 };
 
 export const saveTrainerSocial = async (uid: string, social: TrainerSocial): Promise<void> => {
-  must(await sb.from('trainer_private').upsert({ trainer_id: uid, instagram: social.instagram ?? null, youtube: social.youtube ?? null }));
+  must(await sb.from('trainer_private').upsert({
+    trainer_id: uid,
+    instagram: social.instagram ?? null, youtube: social.youtube ?? null,
+    facebook: social.facebook ?? null, x: social.x ?? null,
+  }));
 };
 
 // ─── Transformations ──────────────────────────────────────────────────────────
@@ -173,40 +149,24 @@ export interface RankedTrainer {
 }
 
 // Only in-app sessions and reviews count, so taking clients off-platform lowers rank.
-export const calculateTrainerScore = (t: TrainerProfile): number =>
-  Math.round((t.totalSessions || 0) * 8 + (t.rating || 0) * 60 + (t.totalReviews || 0) * 6);
+const badgeFor = (rank: number): RankedTrainer['badge'] =>
+  rank === 1 ? 'Gold' : rank === 2 ? 'Silver' : rank === 3 ? 'Bronze' : rank <= 10 ? 'Top Coach' : 'Rising Star';
 
-export const rankTrainers = (
-  trainers: TrainerProfile[],
-  scope: RankingScope,
-  city: string,
-  mode: RankingMode
-): RankedTrainer[] => {
-  let list = trainers;
-  if (scope === 'city' && city) {
-    list = list.filter((t) => t.city === city);
-  }
-  if (mode === 'offline' || mode === 'online') {
-    list = list.filter((t) => t.sessionPreference === mode || t.sessionPreference === 'both');
-  } else if (mode === 'both') {
-    list = list.filter((t) => t.sessionPreference === 'both');
-  }
-
-  return [...list]
-    .sort((a, b) => calculateTrainerScore(b) - calculateTrainerScore(a))
-    .map((trainer, i) => {
-      const rank = i + 1;
-      const badge: RankedTrainer['badge'] =
-        rank === 1 ? 'Gold' : rank === 2 ? 'Silver' : rank === 3 ? 'Bronze' : rank <= 10 ? 'Top Coach' : 'Rising Star';
-      return {
-        rank,
-        trainer,
-        score: calculateTrainerScore(trainer),
-        totalSessions: trainer.totalSessions || 0,
-        rating: trainer.rating || 0,
-        badge,
-      };
-    });
+/**
+ * Leaderboard ranked in the database (score = sessions·8 + rating·60 + reviews·6, see
+ * trainer_score). Returns the top list and, for a coach, their own position.
+ */
+export const getRankings = async (scope: RankingScope, city: string, mode: RankingMode, limit = 100) => {
+  const p_city = scope === 'city' ? city : null;
+  const [rows, myRank] = await Promise.all([
+    sb.rpc('trainer_rankings', { p_city, p_mode: mode, p_limit: limit }).then(must),
+    sb.rpc('my_trainer_rank', { p_city, p_mode: mode }).then(must),
+  ]);
+  const ranked: RankedTrainer[] = (rows as any[]).map((r) => {
+    const trainer = toTrainerProfile(r.trainer);
+    return { rank: Number(r.rank), score: r.score, trainer, totalSessions: trainer.totalSessions || 0, rating: trainer.rating || 0, badge: badgeFor(Number(r.rank)) };
+  });
+  return { ranked, myRank: (myRank as number | null) ?? undefined };
 };
 
 // ─── Profile completeness (shown on the trainer dashboard) ────────────────────

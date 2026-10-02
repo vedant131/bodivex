@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
-import { trainsAtGym } from '../../services/gyms';
 import { InPersonPlace } from '../../types/gym';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
@@ -14,6 +13,7 @@ import { Chip } from '../../components/ui/Bits';
 import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Button } from '../../components/ui/Button';
 
 const GOALS = [
   { label: 'Fat loss', spec: 'Weight Loss', icon: 'flame' as const },
@@ -28,7 +28,7 @@ type Mode = 'all' | 'online' | 'offline';
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ spec?: string }>();
-  const { trainers, isLoading, fetchTrainers } = useTrainerStore();
+  const { trainers, isLoading, isLoadingMore, hasMore, fetchTrainers, fetchMore } = useTrainerStore();
   const city = useAuthStore((s) => s.clientProfile?.city ?? 'Mumbai');
   const myLevel = useAuthStore((s) => s.clientProfile?.athleteLevel);
   const myGym = useAuthStore((s) => s.clientProfile?.gym);
@@ -36,31 +36,29 @@ export default function SearchScreen() {
   const [athletes, setAthletes] = useState(!!myLevel && myLevel !== 'enthusiast');
 
   const [q, setQ] = useState('');
+  const [query, setQuery] = useState(''); // q after the user pauses typing
+  useEffect(() => { const t = setTimeout(() => setQuery(q.trim()), 350); return () => clearTimeout(t); }, [q]);
   const [spec, setSpec] = useState<string | null>(params.spec ?? null);
   const [mode, setMode] = useState<Mode>('all');
 
   useEffect(() => { if (params.spec) setSpec(params.spec); }, [params.spec]);
 
-  // Online coaches can train anyone; in-person ones only in your city.
+  // Online coaches can train anyone; in-person ones only in your city. The server filters,
+  // searches and sorts (coaches at my gym first) and returns one page at a time.
   useEffect(() => {
     fetchTrainers({
       city: mode === 'online' ? undefined : city,
+      searchQuery: query || undefined,
+      preferGymId: myGym?.id,
       specializations: spec ? [spec] : undefined,
       sessionPreference: mode === 'all' ? undefined : mode,
       athleteLevel: athletes ? (myLevel === 'pro' ? 'pro' : 'competitive') : undefined,
       gymId: where === 'mygym' ? myGym?.id : undefined,
       inPersonPlace: where === 'home' || where === 'outdoor' ? where : undefined,
     });
-  }, [spec, mode, city, athletes, where]);
+  }, [spec, mode, city, athletes, where, query]);
 
-  const results = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const hits = !needle ? trainers : trainers.filter((t) =>
-      [t.name, t.bio, t.gymLocation?.name, ...(t.gyms ?? []).map((g) => `${g.name} ${g.area}`), ...t.specializations]
-        .some((f) => f?.toLowerCase().includes(needle))
-    );
-    return [...hits].sort((a, b) => Number(trainsAtGym(b, myGym?.id)) - Number(trainsAtGym(a, myGym?.id)));
-  }, [trainers, q]);
+  const results = trainers;
 
   return (
     <View style={{ flex: 1 }}>
@@ -111,7 +109,7 @@ export default function SearchScreen() {
 
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
           <Text style={[type.micro, { marginBottom: 4 }]}>
-            {isLoading ? 'Searching…' : `${results.length} coach${results.length === 1 ? '' : 'es'}`}
+            {isLoading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} coach${results.length === 1 && !hasMore ? '' : 'es'}`}
           </Text>
           {isLoading ? (
             <Skeleton variant="row" count={4} />
@@ -124,7 +122,10 @@ export default function SearchScreen() {
               </Text>
             </Glass>
           ) : (
-            results.map((t) => <TrainerCard key={t.id} trainer={t} variant="full" />)
+            <>
+              {results.map((t) => <TrainerCard key={t.id} trainer={t} variant="full" />)}
+              {hasMore && <Button title="Show more coaches" variant="glass" size="md" loading={isLoadingMore} onPress={fetchMore} />}
+            </>
           )}
         </ScrollView>
       </SafeAreaView>

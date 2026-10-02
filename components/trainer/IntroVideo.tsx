@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { Image } from 'expo-image';
 import { View, Text, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -15,20 +17,32 @@ export const INTRO_MAX_S = 60;
 const INTRO_MAX_MB = 45; // storage caps files at 50MB (free plan)
 
 /** Muted, looping autoplay clip; tap to toggle sound. */
-export function IntroVideoPlayer({ uri, height = 220, radius = T.radius.xl, soundBottom = 12 }: {
-  uri: string; height?: number; radius?: number; soundBottom?: number;
+export function IntroVideoPlayer({ uri, poster, height = 220, radius = T.radius.xl, soundBottom = 12 }: {
+  uri: string; poster?: string; height?: number; radius?: number; soundBottom?: number;
 }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
-    p.play();
+    // Buffer only a few seconds ahead: a visitor who leaves early doesn't download the whole clip
+    p.bufferOptions = { ...p.bufferOptions, preferredForwardBufferDuration: 8 };
   });
   const { muted } = useEvent(player, 'mutedChange', { muted: player.muted });
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+
+  // Play only while this screen is visible
+  useFocusEffect(useCallback(() => {
+    player.play();
+    return () => player.pause();
+  }, [player]));
   return (
     <PressableScale onPress={() => { player.muted = !player.muted; }} haptic={false}
       accessibilityLabel={muted ? 'Intro video, tap for sound' : 'Intro video, tap to mute'}>
       <View style={[styles.frame, { height, borderRadius: radius }]}>
         <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
+        {/* Still frame (coach photo) until the first video frame is ready */}
+        {!!poster && status !== 'readyToPlay' && (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        )}
         <View style={[styles.sound, { bottom: soundBottom }]}>
           <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={16} color="#fff" />
         </View>
@@ -47,10 +61,10 @@ export function IntroVideoPicker({ uri, onChange }: { uri?: string; onChange: (u
       const opts: ImagePicker.ImagePickerOptions = {
         mediaTypes: ['videos'],
         videoMaxDuration: INTRO_MAX_S,
-        // iOS: phones shoot 4K HEVC (100MB+/min). Record at VGA and transcode picks to 540p H.264,
+        // iOS: phones shoot 4K HEVC (100MB+/min). Record at VGA and transcode picks to 480p H.264,
         // which stays well under the upload limit and also plays on Android.
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.VGA640x480,
-        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540,
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_640x480,
       };
       if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) {
         Alert.alert('Camera access needed', 'Allow camera access in Settings to record your intro.');

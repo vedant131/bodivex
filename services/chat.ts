@@ -53,8 +53,9 @@ const getMessages = async (chatId: string) =>
 export const subscribeToMessages = (chatId: string, callback: (messages: Message[]) => void) =>
   live([{ table: 'messages', filter: `chat_id=eq.${chatId}` }], async () => callback(await getMessages(chatId)));
 
+// Only this user's chats wake the listener (client side or trainer side), not every chat in the app.
 export const subscribeToChats = (userId: string, callback: (chats: Chat[]) => void) =>
-  live([{ table: 'chats' }], async () => {
+  live([{ table: 'chats', filter: `client_id=eq.${userId}` }, { table: 'chats', filter: `trainer_id=eq.${userId}` }], async () => {
     const rows = must(await sb.from('chats').select().contains('participants', [userId]).order('last_message_at', { ascending: false }));
     callback(rows.map(toChat));
   });
