@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTrainerStore } from '../../stores/trainerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { TrainerCard } from '../../components/trainer/TrainerCard';
-import { InPersonPlace } from '../../types/gym';
 import { Backdrop } from '../../components/ui/Backdrop';
 import { Glass } from '../../components/ui/Glass';
 import { Chip } from '../../components/ui/Bits';
@@ -16,17 +15,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { CITIES } from '../../constants/config';
-
-const GOALS = [
-  { label: 'Fat loss', spec: 'Weight Loss', icon: 'flame' as const },
-  { label: 'Muscle', spec: 'Muscle Gain', icon: 'barbell' as const },
-  { label: 'Strength', spec: 'Strength Training', icon: 'fitness' as const },
-  { label: 'HIIT', spec: 'HIIT', icon: 'flash' as const },
-  { label: 'Yoga', spec: 'Yoga', icon: 'leaf' as const },
-  { label: 'Mobility', spec: 'Flexibility & Mobility', icon: 'body' as const },
-];
-
-type Mode = 'all' | 'online' | 'offline';
+import { FilterSheet, Filters, GOALS, countFilters } from '../../components/search/FilterSheet';
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ spec?: string }>();
@@ -41,16 +30,27 @@ export default function SearchScreen() {
     ]);
   const myLevel = useAuthStore((s) => s.clientProfile?.athleteLevel);
   const myGym = useAuthStore((s) => s.clientProfile?.gym);
-  const [where, setWhere] = useState<'any' | 'mygym' | InPersonPlace>('any');
-  const [athletes, setAthletes] = useState(!!myLevel && myLevel !== 'enthusiast');
+  const athleteLabel = myLevel === 'pro' ? 'Coaches pro athletes' : 'Coaches competitive athletes';
 
   const [q, setQ] = useState('');
   const [query, setQuery] = useState(''); // q after the user pauses typing
   useEffect(() => { const t = setTimeout(() => setQuery(q.trim()), 350); return () => clearTimeout(t); }, [q]);
-  const [spec, setSpec] = useState<string | null>(params.spec ?? null);
-  const [mode, setMode] = useState<Mode>('all');
 
-  useEffect(() => { if (params.spec) setSpec(params.spec); }, [params.spec]);
+  const [filters, setFilters] = useState<Filters>({
+    mode: 'all', where: 'any', spec: params.spec ?? null, athletes: !!myLevel && myLevel !== 'enthusiast',
+  });
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { mode, where, spec, athletes } = filters;
+  const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  useEffect(() => { if (params.spec) set({ spec: params.spec }); }, [params.spec]);
+
+  // Removable tags for whatever is switched on, shown after the Filters button
+  const active: { key: string; label: string; clear: () => void }[] = [
+    ...(mode !== 'all' ? [{ key: 'mode', label: mode === 'online' ? 'Online, any city' : 'In person', clear: () => set({ mode: 'all' }) }] : []),
+    ...(where !== 'any' ? [{ key: 'where', label: where === 'mygym' ? 'At my gym' : where === 'home' ? 'Home / society' : 'Outdoors', clear: () => set({ where: 'any' }) }] : []),
+    ...(spec ? [{ key: 'spec', label: GOALS.find((g) => g.spec === spec)?.label ?? spec, clear: () => set({ spec: null }) }] : []),
+    ...(athletes ? [{ key: 'ath', label: 'Athlete coaches', clear: () => set({ athletes: false }) }] : []),
+  ];
 
   // In-person coaching needs the same city; online doesn't. 'All' = this city's coaches first,
   // then online coaches from every other city. The server filters, searches and sorts
@@ -94,28 +94,11 @@ export default function SearchScreen() {
             )}
           </Glass>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {/* One row: city, Filters, then removable tags for active filters */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
             <Chip label={`${city} ▾`} icon="location" active={city !== homeCity} onPress={pickCity} />
-            <Chip label={myLevel === 'pro' ? 'Coaches pros' : 'Athlete coaches'} icon="medal" active={athletes} onPress={() => setAthletes(!athletes)} />
-            {(['all', 'online', 'offline'] as Mode[]).map((m) => (
-              <Chip
-                key={m}
-                label={m === 'all' ? `${city} + online` : m === 'online' ? 'Online, any city' : `In person, ${city}`}
-                icon={m === 'online' ? 'videocam' : m === 'offline' ? 'barbell' : undefined}
-                active={mode === m}
-                onPress={() => setMode(m)}
-              />
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {myGym && <Chip label="At my gym" icon="barbell" active={where === 'mygym'} onPress={() => setWhere(where === 'mygym' ? 'any' : 'mygym')} />}
-            <Chip label="Home / society" icon="home" active={where === 'home'} onPress={() => setWhere(where === 'home' ? 'any' : 'home')} />
-            <Chip label="Outdoors" icon="leaf" active={where === 'outdoor'} onPress={() => setWhere(where === 'outdoor' ? 'any' : 'outdoor')} />
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {GOALS.map((g) => (
-              <Chip key={g.spec} label={g.label} icon={g.icon} active={spec === g.spec} onPress={() => setSpec(spec === g.spec ? null : g.spec)} />
-            ))}
+            <Chip label={active.length ? `Filters · ${countFilters(filters)}` : 'Filters'} icon="options" active={active.length > 0} onPress={() => setSheetOpen(true)} />
+            {active.map((f) => <Chip key={f.key} label={`${f.label}  ✕`} active onPress={f.clear} />)}
           </ScrollView>
         </View>
 
@@ -140,6 +123,8 @@ export default function SearchScreen() {
             </>
           )}
         </ScrollView>
+      <FilterSheet visible={sheetOpen} value={filters} city={city} hasGym={!!myGym} athleteLabel={athleteLabel}
+        onApply={setFilters} onClose={() => setSheetOpen(false)} />
       </SafeAreaView>
     </View>
   );
