@@ -31,18 +31,6 @@ export interface Chat {
   createdAt: Date;
 }
 
-export interface ScheduledCheckIn {
-  id: string;
-  trainerId: string;
-  clientId: string;
-  message: string;
-  scheduledFor: Date;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
-  dayOfWeek?: number; // 0-6 for weekly
-  isActive: boolean;
-  createdAt: Date;
-}
-
 export interface TypingStatus {
   chatId: string;
   typingUsers: string[]; // userIds currently typing

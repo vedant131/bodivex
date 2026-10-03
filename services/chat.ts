@@ -1,5 +1,5 @@
 import { sb, toRow, fromRow, must, live } from './backend';
-import { Chat, Message, ScheduledCheckIn } from '../types/chat';
+import { Chat, Message } from '../types/chat';
 
 const toChat = (row: any) => fromRow<Chat>(row);
 const toMessage = (row: any): Message => {
@@ -71,18 +71,3 @@ export const subscribeToChat = (chatId: string, callback: (chat: Chat) => void) 
 export const setTyping = async (chatId: string, _userId: string, isTyping: boolean): Promise<void> => {
   must(await sb.rpc('set_typing', { p_chat: chatId, p_typing: isTyping }));
 };
-
-export const subscribeToTyping = (chatId: string, currentUserId: string, callback: (typingUsers: string[]) => void) =>
-  subscribeToChat(chatId, (chat) =>
-    callback(Object.entries(chat.typing ?? {}).filter(([uid, on]) => uid !== currentUserId && on).map(([uid]) => uid))
-  );
-
-// ─── Scheduled Check-Ins ──────────────────────────────────────────────────────
-
-export const createScheduledCheckIn = async (data: Omit<ScheduledCheckIn, 'id' | 'createdAt'>): Promise<string> =>
-  must(await sb.from('scheduled_checkins').insert(toRow(data)).select('id').single()).id;
-
-export const getScheduledCheckIns = async (trainerId: string, clientId: string): Promise<ScheduledCheckIn[]> =>
-  must(await sb.from('scheduled_checkins').select()
-    .eq('trainer_id', trainerId).eq('client_id', clientId).eq('is_active', true)
-  ).map((r) => fromRow<ScheduledCheckIn>(r));

@@ -10,7 +10,7 @@ export const CITIES = [
 ] as const;
 export type City = typeof CITIES[number];
 
-// Public Q&A must not carry contact details (keep in sync with firestore.rules noContactInfo)
+// Public Q&A must not carry contact details (keep in sync with no_contact_info() in supabase/migrations)
 export const CONTACT_INFO_PATTERN =
   /(https?:\/\/|www\.|wa\.me|t\.me|instagram|insta\b|whatsapp|telegram|[0-9][0-9 ()+.-]{7,}[0-9]|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|@[a-z0-9_.]{3,})/i;
 export const CONTACT_INFO_MESSAGE =

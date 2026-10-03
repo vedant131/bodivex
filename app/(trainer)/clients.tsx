@@ -48,7 +48,7 @@ export default function TrainerClientsScreen() {
       ? router.push({ pathname: '/chat/[id]', params: { id: c.chatId, name: c.clientName } })
       : Alert.alert('No chat yet', 'Chat opens once you accept a booking from this client.');
 
-  // Note: sent now as a chat message; recurring weekly check-ins need a scheduled Cloud Function
+  // Note: sent now as a chat message; recurring weekly check-ins need a scheduled server job
   const sendCheckIn = async () => {
     if (!checkInFor?.chatId || !user || !msg.trim()) return;
     setSending(true);

@@ -64,18 +64,9 @@ export const clientCancelSession = async (session: Session): Promise<void> => {
   must(await sb.from('sessions').update({ status: 'cancelled', cancel_reason: 'Cancelled by client' }).eq('id', session.id));
 };
 
+/** Completes the session and saves the review in one server transaction (complete_session). */
 export const clientCompleteSession = async (sessionId: string, rating?: number, review?: string): Promise<void> => {
-  const row = must(await sb.from('sessions')
-    .update(toRow({ status: 'completed', clientRating: rating || undefined, clientReview: review || undefined, endedAt: new Date() }))
-    .eq('id', sessionId)
-    .select()
-    .single());
-  if (rating) {
-    must(await sb.from('reviews').insert({
-      id: sessionId, session_id: sessionId, client_id: row.client_id, client_name: row.client_name,
-      trainer_id: row.trainer_id, rating, comment: review ?? '',
-    }));
-  }
+  must(await sb.rpc('complete_session', { p_session: sessionId, p_rating: rating || null, p_review: review ?? null }));
 };
 
 const sessionsBy = async (col: 'client_id' | 'trainer_id', id: string) =>
@@ -83,11 +74,6 @@ const sessionsBy = async (col: 'client_id' | 'trainer_id', id: string) =>
 
 export const getClientSessions = (clientId: string) => sessionsBy('client_id', clientId);
 export const getTrainerSessions = (trainerId: string) => sessionsBy('trainer_id', trainerId);
-
-export const getSessionById = async (id: string): Promise<Session | null> => {
-  const row = must(await sb.from('sessions').select().eq('id', id).maybeSingle());
-  return row ? toSession(row) : null;
-};
 
 export const subscribeToClientSessions = (clientId: string, callback: (sessions: Session[]) => void) =>
   live([{ table: 'sessions', filter: `client_id=eq.${clientId}` }], async () => callback(await getClientSessions(clientId)));

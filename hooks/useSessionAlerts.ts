@@ -27,7 +27,7 @@ const when = (s: Session) =>
 
 /**
  * Local notifications for booking changes while the app is open or backgrounded.
- * Note: remote push (app killed) needs Expo push tokens + a Cloud Function sender; add at launch.
+ * Note: remote push (app killed) needs Expo push tokens + a server-side sender (edge function); add at launch.
  */
 export function useSessionAlerts(role: 'client' | 'trainer') {
   const user = useAuthStore((s) => s.user);

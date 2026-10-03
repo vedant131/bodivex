@@ -35,7 +35,7 @@ import { Alert } from '../components/ui/Feedback';
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Bengali'];
 
-/** Trainer edits their public profile. Approval/rating/fee fields are server-only (see firestore.rules). */
+/** Trainer edits their public profile. Approval/rating/fee fields are server-only (column grants in supabase/migrations). */
 export default function EditTrainerProfile() {
   const { user, trainerProfile, setTrainerProfile, setUser } = useAuthStore();
   const p = trainerProfile;

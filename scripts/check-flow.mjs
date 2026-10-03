@@ -165,8 +165,10 @@ await blocked(client.db.from('sessions').update({ status: 'completed', client_ra
 await blocked(client.db.from('reviews').insert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 5 }).select(),
   'reviewing a session that is not completed');
 must(await admin.from('sessions').update({ scheduled_at: new Date(Date.now() - 3600e3).toISOString() }).eq('id', first.id)); // it happened
-must(await client.db.from('sessions').update({ status: 'completed', client_rating: 4 }).eq('id', first.id));
-must(await client.db.from('reviews').insert({ id: first.id, session_id: first.id, client_id: client.uid, client_name: 'Test Client', trainer_id: trainer.uid, rating: 4, comment: 'Great session' }));
+await blocked(trainer.db.rpc('complete_session', { p_session: first.id, p_rating: 5, p_review: 'self review' }), 'trainer completing and reviewing their own session');
+must(await client.db.rpc('complete_session', { p_session: first.id, p_rating: 4, p_review: 'Great session' }));
+assert.equal(must(await client.db.from('reviews').select('comment').eq('id', first.id).single()).comment, 'Great session');
+ok('session completed and review saved in one transaction');
 await blocked(client.db.from('reviews').upsert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 1 }).select(),
   'overwriting an existing review');
 const stats = must(await admin.from('trainers').select('rating, total_reviews, total_sessions').eq('id', trainer.uid).single());

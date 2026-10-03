@@ -11,9 +11,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.bodivex.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Bodivex needs camera access for profile photos and progress tracking.",
-        "NSPhotoLibraryUsageDescription": "Bodivex needs photo library access to upload your profile photo and transformations.",
-        "NSMicrophoneUsageDescription": "Bodivex needs microphone access for voice notes in chat."
+        "NSCameraUsageDescription": "Bodivex needs camera access so you can take a profile photo or record your intro video.",
+        "NSPhotoLibraryUsageDescription": "Bodivex needs photo library access so you can add your profile photo, intro video and client results.",
+        "NSMicrophoneUsageDescription": "Bodivex needs microphone access to record sound for your intro video."
       }
     },
     "android": {
@@ -26,17 +26,7 @@
       "package": "in.bodivex.app",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -45,23 +35,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Bodivex needs camera access for profile photos and progress tracking."
-        }
-      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Bodivex needs photo library access to upload your profile photo and transformations."
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Bodivex uses location to find trainers near you."
+          "photosPermission": "Bodivex needs photo library access so you can add your profile photo, intro video and client results.",
+          "cameraPermission": "Bodivex needs camera access so you can take a profile photo or record your intro video.",
+          "microphonePermission": "Bodivex needs microphone access to record sound for your intro video."
         }
       ],
       "expo-status-bar",
@@ -74,7 +53,6 @@
           "imageWidth": 160
         }
       ],
-      "@react-native-community/datetimepicker",
       "expo-image",
       "expo-video",
       "expo-asset"
