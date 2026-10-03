@@ -29,6 +29,7 @@ export const getTrainers = async (filter: TrainerFilter = {}, page = 0, pageSize
     p_gym: filter.gymId ?? null,
     p_place: filter.inPersonPlace ?? null,
     p_prefer_gym: filter.preferGymId ?? null,
+    p_online_anywhere: !!filter.onlineAnywhere,
     p_limit: pageSize,
     p_offset: page * pageSize,
   })) as any[]).map(toTrainerProfile);

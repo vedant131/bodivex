@@ -18,8 +18,11 @@ interface Props {
   variant: 'full' | 'compact';
 }
 
-const fromPrice = (t: TrainerProfile) =>
-  Math.min(...[t.pricingOnline, t.pricingOffline].filter((p): p is number => !!p));
+/** Lowest session price as text; a coach without prices yet shows a dash, never "₹Infinity". */
+const fromPrice = (t: TrainerProfile) => {
+  const prices = [t.pricingOnline, t.pricingOffline].filter((p): p is number => !!p);
+  return prices.length ? `₹${Math.min(...prices)}` : '–';
+};
 
 const open = (t: TrainerProfile) => router.push(`/trainer/${t.id}`);
 
@@ -28,10 +31,12 @@ export function TrainerCard({ trainer, variant }: Props) {
   const rating = trainer.totalReviews > 0 ? trainer.rating.toFixed(1) : 'New';
   const myGymId = useAuthStore((s) => s.clientProfile?.gym?.id);
   const atMyGym = trainsAtGym(trainer, myGymId);
+  const myCity = useAuthStore((s) => s.clientProfile?.city);
+  const otherCity = !!myCity && !!trainer.city && trainer.city !== myCity; // shown because they train online
 
   if (variant === 'compact') {
     return (
-      <PressableScale onPress={() => open(trainer)} style={styles.portrait} accessibilityLabel={`${trainer.name}, ${rating}, from ₹${price}`}>
+      <PressableScale onPress={() => open(trainer)} style={styles.portrait} accessibilityLabel={`${trainer.name}, ${rating}, from ${price}`}>
         {trainer.profilePhoto ? (
           <Image source={{ uri: trainer.profilePhoto }} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} />
         ) : (
@@ -55,7 +60,7 @@ export function TrainerCard({ trainer, variant }: Props) {
           <View style={styles.tagRow}>
             <Ionicons name="star" size={11} color={T.star} />
             <Text style={styles.tagMeta}>{rating}</Text>
-            <Text style={styles.tagPrice}>₹{price}</Text>
+            <Text style={styles.tagPrice}>{price}</Text>
           </View>
         </Glass>
       </PressableScale>
@@ -63,7 +68,7 @@ export function TrainerCard({ trainer, variant }: Props) {
   }
 
   return (
-    <PressableScale onPress={() => open(trainer)} accessibilityLabel={`${trainer.name}, ${rating}, from ₹${price}`}>
+    <PressableScale onPress={() => open(trainer)} accessibilityLabel={`${trainer.name}, ${rating}, from ${price}`}>
       <Glass radius={T.radius.lg} style={styles.row}>
         <View>
           <Avatar uri={trainer.profilePhoto} name={trainer.name} size={62} radius={18} />
@@ -75,6 +80,12 @@ export function TrainerCard({ trainer, variant }: Props) {
             <View style={styles.gymPill}>
               <Ionicons name="barbell" size={11} color={T.ring2} />
               <Text style={styles.gymPillText}>Trains at your gym</Text>
+            </View>
+          )}
+          {otherCity && (
+            <View style={[styles.gymPill, styles.cityPill]}>
+              <Ionicons name="videocam" size={11} color={T.ring3} />
+              <Text style={[styles.gymPillText, { color: T.ring3 }]}>{trainer.city} · online</Text>
             </View>
           )}
           <Text style={type.caption} numberOfLines={1}>
@@ -94,7 +105,7 @@ export function TrainerCard({ trainer, variant }: Props) {
           </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.price}>₹{price}</Text>
+          <Text style={styles.price}>{price}</Text>
           <Text style={type.caption}>/session</Text>
         </View>
       </Glass>
@@ -113,6 +124,7 @@ const styles = StyleSheet.create({
   openText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   gymBadge: { top: 36, backgroundColor: 'rgba(155,255,58,0.28)', gap: 4 },
   gymPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(155,255,58,0.14)', borderRadius: 99, paddingHorizontal: 8, height: 20 },
+  cityPill: { backgroundColor: 'rgba(46,230,240,0.12)' },
   gymPillText: { color: T.ring2, fontSize: 11, fontWeight: '800' },
   tag: { position: 'absolute', left: 8, right: 8, bottom: 8, paddingHorizontal: 10, paddingVertical: 8 },
   tagName: { color: T.text, fontSize: 14, fontWeight: '800' },

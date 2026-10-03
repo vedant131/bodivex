@@ -92,6 +92,7 @@ export interface TrainerFilter {
   gymId?: string;
   inPersonPlace?: InPersonPlace;
   preferGymId?: string;           // list coaches at this gym first
+  onlineAnywhere?: boolean;       // with city: also online coaches from other cities
 }
 
 export interface TrainerReview {

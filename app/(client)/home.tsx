@@ -84,6 +84,7 @@ export default function HomeScreen() {
   const load = useCallback(() => {
     fetchTrainers({
       city,
+      onlineAnywhere: true, // plus top online coaches from other cities
       specializations: clientProfile?.fitnessBlueprint?.recommendedFilters?.specializations,
       sessionPreference: clientProfile?.sessionPreference,
       athleteLevel: clientProfile?.athleteLevel && clientProfile.athleteLevel !== 'enthusiast' ? clientProfile.athleteLevel : undefined,

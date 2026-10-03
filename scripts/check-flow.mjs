@@ -203,6 +203,12 @@ const byText = must(await client.db.rpc('search_trainers', { p_q: 'check coach' 
 assert.ok(byText.some((t) => t.id === trainer.uid));
 assert.ok(!must(await client.db.rpc('search_trainers', { p_q: 'New Coach' })).some((t) => t.id === pending.uid));
 ok('text search runs on the server and still hides unapproved coaches');
+const mixed = must(await client.db.rpc('search_trainers', { p_city: 'Mumbai', p_online_anywhere: true, p_limit: 50 }));
+assert.ok(mixed.some((t) => t.city === 'Pune' && t.session_preference === 'online'), 'online Pune coach should appear for Mumbai');
+assert.ok(!mixed.some((t) => t.city !== 'Mumbai' && t.session_preference === 'offline'), 'in-person-only coaches stay in their city');
+const firstOther = mixed.findIndex((t) => t.city !== 'Mumbai');
+assert.ok(firstOther === -1 || mixed.slice(firstOther).every((t) => t.city !== 'Mumbai'), 'same-city coaches are listed first');
+ok('city search adds online coaches from other cities, same city first, never in-person-only ones');
 const ranks = must(await client.db.rpc('trainer_rankings', { p_city: null, p_mode: 'all', p_limit: 500 }));
 assert.ok(ranks.every((r, i) => i === 0 || r.rank >= ranks[i - 1].rank));
 const mine = must(await trainer.db.rpc('my_trainer_rank', { p_city: null, p_mode: 'all' }));

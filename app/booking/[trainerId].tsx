@@ -50,6 +50,8 @@ export default function BookingScreen() {
   const [sessionType, setSessionType] = useState<SessionType>('online');
   const [placeKey, setPlaceKey] = useState<string | null>(null);
   const myGymId = useAuthStore((s) => s.clientProfile?.gym?.id);
+  const myCity = useAuthStore((s) => s.clientProfile?.city);
+  const otherCity = !!trainer && !!myCity && trainer.city !== myCity;
   useEffect(() => {
     if (trainer && !trainer.pricingOnline) setSessionType('offline');
   }, [trainer?.id]);
@@ -161,6 +163,12 @@ export default function BookingScreen() {
             </Glass>
           )}
 
+          {otherCity && sessionType === 'offline' && (
+            <Glass radius={T.radius.lg} style={styles.cityNote}>
+              <Ionicons name="location-outline" size={16} color={T.warning} />
+              <Text style={[type.caption, { flex: 1 }]}>{trainer.name.split(' ')[0]} trains in person in {trainer.city}. Choose Online if you're in {myCity}.</Text>
+            </Glass>
+          )}
           {sessionType === 'offline' && placeOptions.length > 0 && (
             <View style={{ marginBottom: 18, gap: 8 }}>
               <Text style={type.micro}>Where</Text>
@@ -269,6 +277,7 @@ export default function BookingScreen() {
 }
 
 const styles = StyleSheet.create({
+  cityNote: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   scroll: { padding: 16, paddingBottom: 130 },

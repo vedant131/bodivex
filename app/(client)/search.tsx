@@ -14,6 +14,8 @@ import { TAB_BAR_SPACE } from '../../components/ui/GlassTabBar';
 import { T, type } from '../../constants/theme';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
+import { Alert } from '../../components/ui/Feedback';
+import { CITIES } from '../../constants/config';
 
 const GOALS = [
   { label: 'Fat loss', spec: 'Weight Loss', icon: 'flame' as const },
@@ -29,7 +31,14 @@ type Mode = 'all' | 'online' | 'offline';
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ spec?: string }>();
   const { trainers, isLoading, isLoadingMore, hasMore, fetchTrainers, fetchMore } = useTrainerStore();
-  const city = useAuthStore((s) => s.clientProfile?.city ?? 'Mumbai');
+  const homeCity = useAuthStore((s) => s.clientProfile?.city ?? 'Mumbai');
+  const [city, setCity] = useState(homeCity); // browse another city without editing the profile
+  useEffect(() => setCity(homeCity), [homeCity]);
+  const pickCity = () =>
+    Alert.alert('Choose a city', 'In-person coaches are shown for this city. Online coaches from anywhere are always included.', [
+      ...CITIES.map((c) => ({ text: c === homeCity ? `${c} (your city)` : c, onPress: () => setCity(c) })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
   const myLevel = useAuthStore((s) => s.clientProfile?.athleteLevel);
   const myGym = useAuthStore((s) => s.clientProfile?.gym);
   const [where, setWhere] = useState<'any' | 'mygym' | InPersonPlace>('any');
@@ -43,11 +52,13 @@ export default function SearchScreen() {
 
   useEffect(() => { if (params.spec) setSpec(params.spec); }, [params.spec]);
 
-  // Online coaches can train anyone; in-person ones only in your city. The server filters,
-  // searches and sorts (coaches at my gym first) and returns one page at a time.
+  // In-person coaching needs the same city; online doesn't. 'All' = this city's coaches first,
+  // then online coaches from every other city. The server filters, searches and sorts
+  // (coaches at my gym first) and returns one page at a time.
   useEffect(() => {
     fetchTrainers({
       city: mode === 'online' ? undefined : city,
+      onlineAnywhere: mode === 'all',
       searchQuery: query || undefined,
       preferGymId: myGym?.id,
       specializations: spec ? [spec] : undefined,
@@ -84,12 +95,13 @@ export default function SearchScreen() {
           </Glass>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <Chip label={`${city} ▾`} icon="location" active={city !== homeCity} onPress={pickCity} />
             <Chip label={myLevel === 'pro' ? 'Coaches pros' : 'Athlete coaches'} icon="medal" active={athletes} onPress={() => setAthletes(!athletes)} />
             {(['all', 'online', 'offline'] as Mode[]).map((m) => (
               <Chip
                 key={m}
-                label={m === 'all' ? `All in ${city}` : m === 'online' ? 'Online' : 'In person'}
-                icon={m === 'online' ? 'videocam' : m === 'offline' ? 'location' : undefined}
+                label={m === 'all' ? `${city} + online` : m === 'online' ? 'Online, any city' : `In person, ${city}`}
+                icon={m === 'online' ? 'videocam' : m === 'offline' ? 'barbell' : undefined}
                 active={mode === m}
                 onPress={() => setMode(m)}
               />
