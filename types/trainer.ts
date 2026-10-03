@@ -57,6 +57,7 @@ export interface TrainerProfile {
   totalSessions: number;
   isKYCApproved: boolean;
   kycStatus: 'not_started' | 'pending' | 'under_review' | 'approved' | 'rejected';
+  kycNote?: string;             // admin's reason when not approved (server-written)
   languages: string[];
   coachesLevels?: AthleteLevel[]; // who they coach; missing = enthusiasts
   federations?: string[];         // federations they've prepped athletes for

@@ -8,7 +8,7 @@ const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(URL, SERVICE, noSession); // = what you do in Supabase Studio
+const adminDb = createClient(URL, SERVICE, noSession); // = what you do in Supabase Studio
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
 const uniq = () => `${Date.now()}${Math.floor(Math.random() * 1e4)}`.slice(-8);
@@ -36,7 +36,7 @@ const VIDEO = 'https://example.com/intro.mp4';
 // ── Fresh approved trainer each run
 const trainer = await newUser('70', 'trainer');
 must(await trainer.db.from('trainers').insert({ id: trainer.uid, user_id: trainer.uid, name: 'Check Coach', city: 'Mumbai', pricing_online: 499, video_intro_url: VIDEO }));
-must(await admin.from('trainers').update({ is_kyc_approved: true, kyc_status: 'approved', is_available_now: true }).eq('id', trainer.uid));
+must(await adminDb.from('trainers').update({ is_kyc_approved: true, kyc_status: 'approved', is_available_now: true }).eq('id', trainer.uid));
 must(await trainer.db.from('trainer_private').insert({ trainer_id: trainer.uid, instagram: 'check.coach', facebook: 'check.fb' }));
 const accept = (sessionId, payment = null) => trainer.db.rpc('accept_booking', { p_session: sessionId, p_payment: payment });
 
@@ -137,7 +137,7 @@ assert.equal(must(await accept(fourthBooking.id, 'test')).fee, 149);
 ok('new client #4 accepted after (test) payment');
 assert.equal(must(await accept((await book(client)).id)).fee, 0);
 ok('returning client accepted free');
-const t = must(await admin.from('trainers').select().eq('id', trainer.uid).single());
+const t = must(await adminDb.from('trainers').select().eq('id', trainer.uid).single());
 assert.equal(t.lead_count, 4); assert.equal(t.fees_paid, 149);
 assert.equal(must(await trainer.db.from('leads').select()).length, 4);
 ok('ledger: 4 clients, ₹149 paid');
@@ -164,14 +164,14 @@ await blocked(client.db.from('sessions').update({ status: 'completed', client_ra
   'completing (and reviewing) before the session time');
 await blocked(client.db.from('reviews').insert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 5 }).select(),
   'reviewing a session that is not completed');
-must(await admin.from('sessions').update({ scheduled_at: new Date(Date.now() - 3600e3).toISOString() }).eq('id', first.id)); // it happened
+must(await adminDb.from('sessions').update({ scheduled_at: new Date(Date.now() - 3600e3).toISOString() }).eq('id', first.id)); // it happened
 await blocked(trainer.db.rpc('complete_session', { p_session: first.id, p_rating: 5, p_review: 'self review' }), 'trainer completing and reviewing their own session');
 must(await client.db.rpc('complete_session', { p_session: first.id, p_rating: 4, p_review: 'Great session' }));
 assert.equal(must(await client.db.from('reviews').select('comment').eq('id', first.id).single()).comment, 'Great session');
 ok('session completed and review saved in one transaction');
 await blocked(client.db.from('reviews').upsert({ id: first.id, session_id: first.id, client_id: client.uid, trainer_id: trainer.uid, rating: 1 }).select(),
   'overwriting an existing review');
-const stats = must(await admin.from('trainers').select('rating, total_reviews, total_sessions').eq('id', trainer.uid).single());
+const stats = must(await adminDb.from('trainers').select('rating, total_reviews, total_sessions').eq('id', trainer.uid).single());
 assert.equal(Number(stats.rating), 4); assert.equal(stats.total_reviews, 1); assert.equal(stats.total_sessions, 1);
 ok('review updated rating (4.0) and session count');
 
@@ -211,6 +211,31 @@ assert.equal(must(await pending.db.rpc('my_trainer_rank', { p_city: null, p_mode
 ok(`rankings computed in the database (coach is #${mine}; unapproved coach has no rank)`);
 assert.equal(must(await client.db.from('chats').select('client_id').eq('id', first.chatId).single()).client_id, client.uid);
 ok('chats carry client_id so live updates can be filtered per user');
+
+// ── Admin review of new coaches
+assert.equal(must(await pending.db.rpc('is_admin')), false);
+await blocked(pending.db.rpc('admin_review_trainer', { p_trainer: pending.uid, p_approve: true }), 'coach approving themselves via the admin function');
+await blocked(client.db.rpc('admin_list_trainers', { p_status: 'pending' }), 'non-admin listing coaches with phone numbers');
+await blocked(pending.db.from('admins').insert({ user_id: pending.uid }).select(), 'making yourself an admin');
+const admin = await newUser('99', 'client');
+must(await adminDb.from('admins').insert({ user_id: admin.uid }));
+assert.equal(must(await admin.db.rpc('is_admin')), true);
+const queue = must(await admin.db.rpc('admin_list_trainers', { p_status: 'pending' }));
+const queued = queue.find((r) => r.trainer.id === pending.uid);
+assert.ok(queued && queued.phone === pending.phone);
+ok('admin sees the pending coach with their phone number');
+await blocked(admin.db.rpc('admin_review_trainer', { p_trainer: pending.uid, p_approve: false, p_note: ' ' }), 'rejecting without a reason');
+must(await admin.db.rpc('admin_review_trainer', { p_trainer: pending.uid, p_approve: false, p_note: 'Certificate photo unclear' }));
+let me2 = must(await pending.db.from('trainers').select('kyc_status, kyc_note').eq('id', pending.uid).single());
+assert.equal(me2.kyc_status, 'rejected'); assert.equal(me2.kyc_note, 'Certificate photo unclear');
+ok('rejected coach sees the reason');
+must(await pending.db.from('trainers').update({ bio: 'Updated bio with a clear certificate photo' }).eq('id', pending.uid));
+me2 = must(await pending.db.from('trainers').select('kyc_status').eq('id', pending.uid).single());
+assert.equal(me2.kyc_status, 'pending');
+ok('saving the profile sends it back for review');
+must(await admin.db.rpc('admin_review_trainer', { p_trainer: pending.uid, p_approve: true }));
+assert.ok(must(await client.db.from('trainers').select('id').eq('id', pending.uid)).length === 1);
+ok('approved coach becomes visible to clients');
 
 // ── File storage: own folder only
 const png = new Uint8Array([137, 80, 78, 71]);

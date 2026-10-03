@@ -14,6 +14,7 @@ import { T, type } from '../../constants/theme';
 import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel, BudgetRangeLabel } from '../../types/user';
 import { Alert } from '../../components/ui/Feedback';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 
 function MenuRow({ icon, label, onPress, danger }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean;
@@ -31,6 +32,7 @@ function MenuRow({ icon, label, onPress, danger }: {
 
 export default function ClientProfileScreen() {
   const { user, clientProfile: p } = useAuthStore();
+  const admin = useIsAdmin();
   const bmi = p?.weight && p?.height ? (p.weight / Math.pow(p.height / 100, 2)).toFixed(1) : '–';
   const bp = p?.fitnessBlueprint;
 
@@ -110,6 +112,7 @@ export default function ClientProfileScreen() {
 
         {/* Settings */}
         <Glass radius={T.radius.xl} style={{ paddingHorizontal: 16 }}>
+          {admin && (<><MenuRow icon="shield-checkmark-outline" label="Review coaches (admin)" onPress={() => router.push('/admin' as any)} /><View style={styles.sep} /></>)}
           <MenuRow icon="help-circle-outline" label="Help & support" onPress={() => Alert.alert('Help', `Write to us at ${CONFIG.supportEmail}`)} />
           <View style={styles.sep} />
           <MenuRow icon="information-circle-outline" label="About Bodivex" onPress={() => Alert.alert(CONFIG.appName, `${CONFIG.tagline}\n${CONFIG.website}`)} />

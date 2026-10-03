@@ -15,6 +15,7 @@ import { celebrate } from '../../../components/ui/Feedback';
 export default function TrainerPendingScreen() {
   const { user, trainerProfile, setTrainerProfile } = useAuthStore();
   const approved = trainerProfile?.kycStatus === 'approved';
+  const rejected = trainerProfile?.kycStatus === 'rejected';
   const wasApproved = useRef(approved);
   useEffect(() => {
     if (approved && !wasApproved.current) celebrate("You're live!", 'Clients can now find and book you.');
@@ -35,10 +36,12 @@ export default function TrainerPendingScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(150)} style={{ gap: 8, alignItems: 'center' }}>
-          <Text style={[type.display, { textAlign: 'center' }]}>{approved ? "You're live!" : 'Under review'}</Text>
+          <Text style={[type.display, { textAlign: 'center' }]}>{approved ? "You're live!" : rejected ? 'A few changes needed' : 'Under review'}</Text>
           <Text style={[type.body, { color: T.text2, textAlign: 'center' }]}>
             {approved
               ? 'Clients in your city can now find and book you.'
+              : rejected
+              ? `Our team's note: ${trainerProfile?.kycNote ?? 'please update your profile.'} Fix it in Edit profile and save; your profile goes back for review automatically.`
               : `We'll contact you to verify your ID and certificates, usually within ${CONFIG.trainerApprovalHours} hours. You can set up your profile meanwhile.`}
           </Text>
         </Animated.View>
@@ -51,7 +54,8 @@ export default function TrainerPendingScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Button title="Go to dashboard" icon="arrow-forward" onPress={() => router.replace('/(trainer)/dashboard')} />
+        {rejected && <Button title="Edit profile" icon="create-outline" onPress={() => router.push('/profile-edit')} />}
+        <Button title="Go to dashboard" icon="arrow-forward" variant={rejected ? 'glass' : 'primary'} onPress={() => router.replace('/(trainer)/dashboard')} />
       </View>
     </Screen>
   );
@@ -68,5 +72,5 @@ const styles = StyleSheet.create({
   body: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, gap: 24 },
   badge: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
   card: { alignSelf: 'stretch', padding: 18, gap: 16 },
-  footer: { paddingHorizontal: 20, paddingBottom: 8 },
+  footer: { paddingHorizontal: 20, paddingBottom: 8, gap: 10 },
 });

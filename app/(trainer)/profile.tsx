@@ -21,6 +21,7 @@ import {
   addTransformation, getTransformations, getTrainerQA, answerTrainerQuestion, getTrainerReviews, getTrainerSocial,
 } from '../../services/trainers';
 import { SOCIALS } from '../../components/trainer/SocialFields';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { logout as signOutUser } from '../../services/auth';
 import { Screen } from '../../components/ui/Screen';
 import { Glass } from '../../components/ui/Glass';
@@ -39,6 +40,7 @@ export default function TrainerProfileTab() {
   const [qa, setQa] = useState<TrainerQA[]>([]);
   const [reviews, setReviews] = useState<TrainerReview[]>([]);
   const [social, setSocial] = useState<TrainerSocial>({});
+  const admin = useIsAdmin();
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [answering, setAnswering] = useState<string | null>(null);
 
@@ -121,7 +123,7 @@ export default function TrainerProfileTab() {
             <Text style={type.caption}>{p.city} · {p.experience} yrs coaching</Text>
             <View style={[styles.badge, { backgroundColor: approved ? 'rgba(46,230,240,0.14)' : 'rgba(255,176,32,0.14)' }]}>
               <Ionicons name={approved ? 'checkmark-circle' : 'hourglass-outline'} size={13} color={approved ? T.ring3 : T.warning} />
-              <Text style={[styles.badgeText, { color: approved ? T.ring3 : T.warning }]}>{approved ? 'Verified coach' : 'Under review'}</Text>
+              <Text style={[styles.badgeText, { color: approved ? T.ring3 : T.warning }]}>{approved ? 'Verified coach' : p.kycStatus === 'rejected' ? 'Needs changes' : 'Under review'}</Text>
             </View>
           </View>
         </View>
@@ -249,6 +251,7 @@ export default function TrainerProfileTab() {
         {/* Settings */}
         <Glass radius={T.radius.xl} style={{ paddingHorizontal: 16 }}>
           {[
+            ...(admin ? [{ icon: 'shield-checkmark-outline' as const, label: 'Review coaches (admin)', onPress: () => router.push('/admin' as any) }] : []),
             { icon: 'trophy-outline' as const, label: 'Coach rankings', onPress: () => router.push('/leaderboard') },
             { icon: 'help-circle-outline' as const, label: 'Help & support', onPress: () => Alert.alert('Help', `Write to us at ${CONFIG.supportEmail}`) },
           ].map((m) => (
