@@ -29,10 +29,12 @@ export function IntroVideoPlayer({ uri, poster, height = 220, radius = T.radius.
   const { muted } = useEvent(player, 'mutedChange', { muted: player.muted });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
 
-  // Play only while this screen is visible
+  // Play only while this screen is visible. On unmount useVideoPlayer releases the player
+  // before this cleanup runs, and touching a released native player throws (white screen),
+  // so a failed pause is expected and safe to ignore.
   useFocusEffect(useCallback(() => {
     player.play();
-    return () => player.pause();
+    return () => { try { player.pause(); } catch {} };
   }, [player]));
   return (
     <PressableScale onPress={() => { player.muted = !player.muted; }} haptic={false}
