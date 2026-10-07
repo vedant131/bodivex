@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { createClient } from '@supabase/supabase-js';
 
-const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:55321';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
@@ -242,6 +242,26 @@ ok('saving the profile sends it back for review');
 must(await admin.db.rpc('admin_review_trainer', { p_trainer: pending.uid, p_approve: true }));
 assert.ok(must(await client.db.from('trainers').select('id').eq('id', pending.uid)).length === 1);
 ok('approved coach becomes visible to clients');
+
+// ── Delete my account (App Store requirement)
+const leaver = await newUser('22', 'client');
+must(await leaver.db.from('clients').upsert({ user_id: leaver.uid, name: 'Leaving Client', city: 'Mumbai' }));
+const leaverBooking = await book(leaver);
+assert.ok(leaverBooking.id);
+must(await accept(leaverBooking.id, 'test'));  // coach now has a fee/lead record for this client
+must(await leaver.db.from('qa').insert({ trainer_id: trainer.uid, client_id: leaver.uid, client_name: 'Leaving Client', question: 'Do you coach beginners?' }));
+must(await leaver.db.rpc('delete_my_account'));
+assert.equal(must(await adminDb.from('users').select('id').eq('id', leaver.uid)).length, 0);
+assert.equal(must(await adminDb.from('sessions').select('id').eq('client_id', leaver.uid)).length, 0);
+assert.equal(must(await adminDb.from('chats').select('id').eq('id', leaverBooking.chatId)).length, 0);
+const ledger = must(await adminDb.from('leads').select('client_name').eq('client_id', leaver.uid).single());
+assert.equal(ledger.client_name, 'Deleted user');
+assert.equal(must(await adminDb.from('qa').select('client_name').eq('client_id', leaver.uid).single()).client_name, 'Deleted user');
+const relogin = await createClient(URL, ANON, noSession).auth.signInWithPassword({ email: `${leaver.phone.slice(1)}@phone.bodivex.dev`, password: 'dev-only-password' });
+assert.ok(relogin.error, 'deleted login must not work');
+assert.ok(must(await adminDb.from('trainers').select('id').eq('id', trainer.uid)).length === 1);
+ok('account deleted: profile, bookings, chat and login gone; coach keeps an anonymous fee record');
+await blocked(createClient(URL, ANON, noSession).rpc('delete_my_account'), 'deleting an account without signing in');
 
 // ── File storage: own folder only
 const png = new Uint8Array([137, 80, 78, 71]);

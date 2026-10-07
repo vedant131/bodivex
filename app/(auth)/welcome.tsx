@@ -74,7 +74,11 @@ export default function WelcomeScreen() {
         <View style={{ gap: 10 }}>
           <RoleCard role="client" icon="search" title="Find a coach" sub="Browse verified trainers and book a session" delay={1000} />
           <RoleCard role="trainer" icon="barbell" title="I'm a coach" sub="List for free and get clients near you" delay={1100} />
-          <Text style={styles.terms}>By continuing you agree to our Terms and Privacy Policy</Text>
+          <Text style={styles.terms}>
+            By continuing you agree to our{' '}
+            <Text style={styles.link} onPress={() => router.push('/legal/terms' as any)} accessibilityRole="link">Terms</Text> and{' '}
+            <Text style={styles.link} onPress={() => router.push('/legal/privacy' as any)} accessibilityRole="link">Privacy Policy</Text>
+          </Text>
         </View>
       </SafeAreaView>
     </View>
@@ -90,4 +94,5 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
   cardIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   terms: { ...type.caption, textAlign: 'center', color: T.text3, marginTop: 6 },
+  link: { color: T.text2, textDecorationLine: 'underline' },
 });

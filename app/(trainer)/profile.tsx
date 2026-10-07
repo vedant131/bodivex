@@ -22,6 +22,7 @@ import {
 } from '../../services/trainers';
 import { SOCIALS } from '../../components/trainer/SocialFields';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
+import { askToDeleteAccount } from '../../components/shared/deleteAccount';
 import { logout as signOutUser } from '../../services/auth';
 import { Screen } from '../../components/ui/Screen';
 import { Glass } from '../../components/ui/Glass';
@@ -254,6 +255,8 @@ export default function TrainerProfileTab() {
             ...(admin ? [{ icon: 'shield-checkmark-outline' as const, label: 'Review coaches (admin)', onPress: () => router.push('/admin' as any) }] : []),
             { icon: 'trophy-outline' as const, label: 'Coach rankings', onPress: () => router.push('/leaderboard') },
             { icon: 'help-circle-outline' as const, label: 'Help & support', onPress: () => Alert.alert('Help', `Write to us at ${CONFIG.supportEmail}`) },
+            { icon: 'shield-outline' as const, label: 'Privacy policy', onPress: () => router.push('/legal/privacy' as any) },
+            { icon: 'document-text-outline' as const, label: 'Terms of use', onPress: () => router.push('/legal/terms' as any) },
           ].map((m) => (
             <PressableScale key={m.label} onPress={m.onPress}>
               <View style={styles.menuRow}>
@@ -267,6 +270,12 @@ export default function TrainerProfileTab() {
             <View style={styles.menuRow}>
               <Ionicons name="log-out-outline" size={20} color={T.danger} />
               <Text style={[type.body, { color: T.danger }]}>Log out</Text>
+            </View>
+          </PressableScale>
+          <PressableScale onPress={askToDeleteAccount}>
+            <View style={styles.menuRow}>
+              <Ionicons name="trash-outline" size={20} color={T.danger} />
+              <Text style={[type.body, { color: T.danger }]}>Delete account</Text>
             </View>
           </PressableScale>
         </Glass>

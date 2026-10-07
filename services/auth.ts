@@ -1,4 +1,4 @@
-import { sb, toRow, fromRow, must, IS_LOCAL_BACKEND } from './backend';
+import { sb, toRow, fromRow, must, IS_LOCAL_BACKEND, removeFolder } from './backend';
 import { User, UserRole, ClientProfile } from '../types/user';
 import { TrainerProfile } from '../types/trainer';
 
@@ -31,6 +31,17 @@ export const signInWithPhone = async (phone: string): Promise<AuthUser> => {
 
 export const logout = async (): Promise<void> => {
   await sb.auth.signOut();
+};
+
+/**
+ * Permanently deletes the signed-in account: their photos/videos first (storage API), then
+ * profile, bookings, chats and reviews in one server transaction (delete_my_account), then signs out.
+ */
+export const deleteMyAccount = async (uid: string): Promise<void> => {
+  await removeFolder(`users/${uid}`);
+  await removeFolder(`transformations/${uid}`);
+  must(await sb.rpc('delete_my_account'));
+  await sb.auth.signOut().catch(() => {}); // session is already invalid server-side
 };
 
 export const subscribeToAuthState = (callback: (user: AuthUser | null) => void) => {

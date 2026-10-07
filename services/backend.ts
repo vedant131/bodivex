@@ -16,7 +16,7 @@ const metroHost = Constants.expoConfig?.hostUri?.split(':')[0];
 const localHost = metroHost ?? (Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1');
 
 export const IS_LOCAL_BACKEND = !process.env.EXPO_PUBLIC_SUPABASE_URL;
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL || `http://${localHost}:54321`;
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL || `http://${localHost}:55321`;
 // Public demo key every local Supabase stack uses (not a secret).
 const key = process.env.EXPO_PUBLIC_SUPABASE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
@@ -49,7 +49,7 @@ export const toRow = (o: Record<string, any>, clearUndefined = false) =>
   );
 
 // Seeded files carry 127.0.0.1 URLs; point them at the host this device actually reaches (no-op when hosted).
-const LOCAL_PREFIX = 'http://127.0.0.1:54321';
+const LOCAL_PREFIX = 'http://127.0.0.1:55321';
 const fixUrl = (v: any) => (typeof v === 'string' && v.startsWith(LOCAL_PREFIX) ? url + v.slice(LOCAL_PREFIX.length) : v);
 
 /** Row → app object. NULL becomes a missing key; *_at / scheduled_for become Dates. */
@@ -103,6 +103,16 @@ export const uploadFile = async (localUri: string, path: string, fallbackType: s
   if (error) throw new Error(error.message);
   // Cache-bust so a replaced photo/video shows the new version
   return `${sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+};
+
+/** Deletes every file under a folder the user owns, e.g. `users/<uid>` (storage policy enforces ownership). */
+export const removeFolder = async (prefix: string): Promise<void> => {
+  for (;;) {
+    const files = must(await sb.storage.from(BUCKET).list(prefix, { limit: 100 }));
+    if (!files.length) return;
+    must(await sb.storage.from(BUCKET).remove(files.map((f) => `${prefix}/${f.name}`)));
+    if (files.length < 100) return;
+  }
 };
 
 // ─── Server functions (edge functions) ───────────────────────────────────────

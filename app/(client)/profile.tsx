@@ -15,6 +15,7 @@ import { CONFIG } from '../../constants/config';
 import { FitnessGoalLabel, BudgetRangeLabel } from '../../types/user';
 import { Alert } from '../../components/ui/Feedback';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
+import { askToDeleteAccount } from '../../components/shared/deleteAccount';
 
 function MenuRow({ icon, label, onPress, danger }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean;
@@ -115,9 +116,15 @@ export default function ClientProfileScreen() {
           {admin && (<><MenuRow icon="shield-checkmark-outline" label="Review coaches (admin)" onPress={() => router.push('/admin' as any)} /><View style={styles.sep} /></>)}
           <MenuRow icon="help-circle-outline" label="Help & support" onPress={() => Alert.alert('Help', `Write to us at ${CONFIG.supportEmail}`)} />
           <View style={styles.sep} />
+          <MenuRow icon="shield-outline" label="Privacy policy" onPress={() => router.push('/legal/privacy' as any)} />
+          <View style={styles.sep} />
+          <MenuRow icon="document-text-outline" label="Terms of use" onPress={() => router.push('/legal/terms' as any)} />
+          <View style={styles.sep} />
           <MenuRow icon="information-circle-outline" label="About Bodivex" onPress={() => Alert.alert(CONFIG.appName, `${CONFIG.tagline}\n${CONFIG.website}`)} />
           <View style={styles.sep} />
           <MenuRow icon="log-out-outline" label="Log out" onPress={logout} danger />
+          <View style={styles.sep} />
+          <MenuRow icon="trash-outline" label="Delete account" onPress={askToDeleteAccount} danger />
         </Glass>
       </ScrollView>
     </Screen>
